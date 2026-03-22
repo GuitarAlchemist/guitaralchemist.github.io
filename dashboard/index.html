@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GuitarAlchemist — Ecosystem Dashboard</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow-x: hidden; }
+a { color: #58a6ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.header { text-align: center; padding: 30px 20px 10px; }
+.header h1 { font-size: 28px; color: white; margin-bottom: 6px; }
+.header p { color: #8b949e; font-size: 14px; }
+.header .stats { color: #58a6ff; font-size: 13px; margin-top: 8px; }
+
+.nav { display: flex; justify-content: center; gap: 20px; padding: 15px; flex-wrap: wrap; }
+.nav a { background: #21262d; padding: 8px 16px; border-radius: 6px; font-size: 13px; color: #c9d1d9; border: 1px solid #30363d; }
+.nav a:hover { background: #30363d; text-decoration: none; }
+.nav a.active { border-color: #58a6ff; color: #58a6ff; }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+.panel { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; min-height: 400px; }
+.panel h2 { font-size: 16px; color: white; margin-bottom: 4px; }
+.panel .subtitle { font-size: 11px; color: #8b949e; margin-bottom: 15px; }
+.panel.full { grid-column: 1 / -1; }
+
+.tooltip { position: absolute; background: #1c2128; border: 1px solid #30363d; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #c9d1d9; pointer-events: none; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+
+.legend-item { display: inline-flex; align-items: center; gap: 5px; margin-right: 14px; font-size: 11px; }
+.legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+footer { text-align: center; padding: 30px; color: #8b949e; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>GuitarAlchemist Ecosystem Dashboard</h1>
+  <p>Interactive governance visualization — powered by <a href="https://github.com/GuitarAlchemist/Demerzel">Demerzel</a></p>
+  <div class="stats">7 repos | 200+ MCP tools | 18 grammars | 24 policies | 13 departments | 23 courses | 6 languages</div>
+</div>
+
+<div class="nav">
+  <a href="https://github.com/GuitarAlchemist">GitHub Org</a>
+  <a href="https://github.com/orgs/GuitarAlchemist/projects/2">Project Board</a>
+  <a href="https://github.com/orgs/GuitarAlchemist/discussions">Discussions</a>
+  <a href="https://guitaralchemist.github.io/">Music Demos</a>
+  <a href="https://github.com/GuitarAlchemist/Demerzel/tree/master/grammars">Grammars</a>
+  <a href="https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/courses">Courses</a>
+</div>
+
+<div class="grid">
+
+  <!-- 1. Constitutional Hierarchy Sunburst -->
+  <div class="panel">
+    <h2>Constitutional Hierarchy</h2>
+    <div class="subtitle">Asimov Laws → Constitution → Policies → Personas</div>
+    <div id="sunburst"></div>
+  </div>
+
+  <!-- 2. Grammar Distribution -->
+  <div class="panel">
+    <h2>Grammar Library (18)</h2>
+    <div class="subtitle">Grouped by domain prefix — click to explore</div>
+    <div id="grammar-tree"></div>
+  </div>
+
+  <!-- 3. MCP Federation Force Graph -->
+  <div class="panel full">
+    <h2>MCP Tool Federation (200+ tools)</h2>
+    <div class="subtitle">Force-directed graph — repos connected by shared tool categories</div>
+    <div id="mcp-graph"></div>
+  </div>
+
+  <!-- 4. Streeling University -->
+  <div class="panel">
+    <h2>Streeling University (13 Departments)</h2>
+    <div class="subtitle">Courses, grammars, and research status per department</div>
+    <div id="university"></div>
+  </div>
+
+  <!-- 5. BS Detector Demo -->
+  <div class="panel">
+    <h2>BS Detector</h2>
+    <div class="subtitle">Paste text — get a fuzzy BS score</div>
+    <div id="bs-detector">
+      <textarea id="bs-input" rows="4" style="width:100%; background:#0d1117; color:#c9d1d9; border:1px solid #30363d; border-radius:6px; padding:10px; font-size:13px; resize:vertical;" placeholder="Paste text to analyze for BS...">We're leveraging our proprietary AI platform to drive unprecedented insights at scale</textarea>
+      <button onclick="analyzeBs()" style="margin-top:10px; background:#238636; color:white; border:none; padding:10px 20px; border-radius:6px; cursor:pointer; font-size:13px;">Analyze</button>
+      <div id="bs-result" style="margin-top:15px;"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <a href="https://github.com/GuitarAlchemist/Demerzel">Demerzel Autonomous Governance</a> ·
+  <a href="https://github.com/GuitarAlchemist">GuitarAlchemist</a> ·
+  Built with D3.js
+</footer>
+
+<div class="tooltip" id="tooltip" style="display:none;"></div>
+
+<script>
+const colors = {
+  core: '#f0883e', gov: '#4cb050', music: '#7289da',
+  sci: '#e06c75', human: '#c678dd', infra: '#56b6c2', meta: '#e5c07b'
+};
+
+const tooltip = d3.select('#tooltip');
+
+function showTooltip(evt, html) {
+  tooltip.html(html).style('display','block')
+    .style('left', (evt.pageX+12)+'px').style('top', (evt.pageY-10)+'px');
+}
+function hideTooltip() { tooltip.style('display','none'); }
+
+// ========================================
+// 1. CONSTITUTIONAL SUNBURST
+// ========================================
+(function() {
+  const data = {
+    name: "Governance", children: [
+      { name: "Asimov Laws", color: colors.core, children: [
+        { name: "Art 0: Zeroth Law", value: 3 },
+        { name: "Art 1: First Law", value: 2 },
+        { name: "Art 2: Second Law", value: 2 },
+        { name: "Art 3: Third Law", value: 1 },
+        { name: "Art 4: Separation", value: 1 },
+        { name: "Art 5: Consequence", value: 1 }
+      ]},
+      { name: "Constitution", color: colors.gov, children: [
+        { name: "Truthfulness", value: 2 }, { name: "Transparency", value: 2 },
+        { name: "Reversibility", value: 2 }, { name: "Proportionality", value: 2 },
+        { name: "Non-Deception", value: 1 }, { name: "Escalation", value: 2 },
+        { name: "Auditability", value: 2 }, { name: "Observability", value: 2 },
+        { name: "Bounded Autonomy", value: 2 }, { name: "Stakeholder Pluralism", value: 1 },
+        { name: "Ethical Stewardship", value: 2 }
+      ]},
+      { name: "Policies (24)", color: colors.human, children: [
+        { name: "alignment", value: 1 }, { name: "rollback", value: 1 },
+        { name: "self-modification", value: 1 }, { name: "kaizen", value: 1 },
+        { name: "recon", value: 1 }, { name: "scientific-objectivity", value: 1 },
+        { name: "streeling", value: 1 }, { name: "governance-audit", value: 1 },
+        { name: "autonomous-loop", value: 1 }, { name: "multi-model", value: 1 },
+        { name: "context-mgmt", value: 1 }, { name: "auto-remediation", value: 1 },
+        { name: "ml-feedback", value: 1 }, { name: "belief-currency", value: 1 },
+        { name: "proto-conscience", value: 1 }, { name: "conscience-obs", value: 1 },
+        { name: "intuition", value: 1 }, { name: "gov-experimentation", value: 1 },
+        { name: "multilingual", value: 1 }, { name: "grammar-evolution", value: 1 },
+        { name: "staleness-detection", value: 1 }, { name: "readme-sync", value: 1 },
+        { name: "continuous-learning", value: 1 }, { name: "bs-detection", value: 1 }
+      ]},
+      { name: "Personas (14)", color: colors.infra, children: [
+        { name: "demerzel", value: 2 }, { name: "seldon", value: 2 },
+        { name: "skeptical-auditor", value: 1 }, { name: "kaizen-optimizer", value: 1 },
+        { name: "reflective-architect", value: 1 }, { name: "system-integrator", value: 1 },
+        { name: "communal-steward", value: 1 }, { name: "theory-agent", value: 1 },
+        { name: "default", value: 1 }, { name: "others (5)", value: 3 }
+      ]}
+    ]
+  };
+
+  const el = document.getElementById('sunburst');
+  const w = el.clientWidth, h = 360;
+  const radius = Math.min(w, h) / 2;
+
+  const svg = d3.select('#sunburst').append('svg').attr('width', w).attr('height', h)
+    .append('g').attr('transform', `translate(${w/2},${h/2})`);
+
+  const root = d3.hierarchy(data).sum(d => d.value);
+  d3.partition().size([2 * Math.PI, radius])(root);
+
+  const arc = d3.arc().startAngle(d => d.x0).endAngle(d => d.x1)
+    .innerRadius(d => d.y0).outerRadius(d => d.y1 - 1);
+
+  svg.selectAll('path').data(root.descendants().filter(d => d.depth))
+    .join('path').attr('d', arc)
+    .attr('fill', d => {
+      let n = d;
+      while (n.depth > 1) n = n.parent;
+      return n.data.color || '#30363d';
+    })
+    .attr('fill-opacity', d => 1 - d.depth * 0.15)
+    .attr('stroke', '#0d1117').attr('stroke-width', 0.5)
+    .style('cursor', 'pointer')
+    .on('mouseover', (evt, d) => showTooltip(evt, `<b>${d.data.name}</b><br>Depth: ${d.depth}`))
+    .on('mouseout', hideTooltip);
+
+  svg.append('text').attr('text-anchor','middle').attr('dy','0.3em')
+    .attr('fill','white').attr('font-size','13px').attr('font-weight','bold')
+    .text('Demerzel');
+})();
+
+// ========================================
+// 2. GRAMMAR TREEMAP
+// ========================================
+(function() {
+  const data = {
+    name: "grammars", children: [
+      { name: "core", color: colors.core, children: [
+        { name: "scientific-method", value: 44 }, { name: "state-machines", value: 80 },
+        { name: "meta-grammar", value: 160 }
+      ]},
+      { name: "music", color: colors.music, children: [
+        { name: "theory", value: 61 }, { name: "guitar-technique", value: 52 },
+        { name: "musicology", value: 52 }, { name: "satriani-advanced", value: 200 }
+      ]},
+      { name: "sci", color: colors.sci, children: [
+        { name: "mathematical-proof", value: 54 }, { name: "acoustics-physics", value: 47 },
+        { name: "algorithms", value: 55 }, { name: "ml-pipelines", value: 150 }
+      ]},
+      { name: "gov", color: colors.gov, children: [
+        { name: "blind-spot-detection", value: 160 }, { name: "bs-generators-v2", value: 350 },
+        { name: "product-management", value: 132 }
+      ]},
+      { name: "human", color: colors.human, children: [
+        { name: "philosophy", value: 106 }, { name: "cognitive-science", value: 116 },
+        { name: "futurology", value: 86 }, { name: "psychohistory", value: 57 }
+      ]}
+    ]
+  };
+
+  const el = document.getElementById('grammar-tree');
+  const w = el.clientWidth, h = 340;
+
+  const svg = d3.select('#grammar-tree').append('svg').attr('width', w).attr('height', h);
+
+  const root = d3.hierarchy(data).sum(d => d.value);
+  d3.treemap().size([w, h]).padding(3).paddingTop(20)(root);
+
+  // Group rectangles
+  const groups = svg.selectAll('g').data(root.children).join('g');
+
+  groups.append('rect')
+    .attr('x', d => d.x0).attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0)
+    .attr('fill', d => d.data.color).attr('fill-opacity', 0.15)
+    .attr('stroke', d => d.data.color).attr('stroke-width', 1)
+    .attr('rx', 4);
+
+  groups.append('text')
+    .attr('x', d => d.x0 + 5).attr('y', d => d.y0 + 14)
+    .attr('fill', d => d.data.color).attr('font-size', '11px').attr('font-weight', 'bold')
+    .text(d => d.data.name + '-');
+
+  // Leaf rectangles
+  const leaves = svg.selectAll('.leaf').data(root.leaves()).join('g').attr('class', 'leaf');
+
+  leaves.append('rect')
+    .attr('x', d => d.x0).attr('y', d => d.y0)
+    .attr('width', d => d.x1 - d.x0).attr('height', d => d.y1 - d.y0)
+    .attr('fill', d => { let n = d; while(n.depth>1) n=n.parent; return n.data.color; })
+    .attr('fill-opacity', 0.4).attr('rx', 3)
+    .style('cursor', 'pointer')
+    .on('mouseover', (evt, d) => showTooltip(evt, `<b>${d.parent.data.name}-${d.data.name}.ebnf</b><br>${d.data.value} lines`))
+    .on('mouseout', hideTooltip)
+    .on('click', (evt, d) => window.open(`https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/${d.parent.data.name}-${d.data.name}.ebnf`, '_blank'));
+
+  leaves.append('text')
+    .attr('x', d => d.x0 + 3).attr('y', d => d.y0 + 12)
+    .attr('fill', 'white').attr('font-size', '9px')
+    .text(d => (d.x1-d.x0 > 50) ? d.data.name : '');
+})();
+
+// ========================================
+// 3. MCP FEDERATION FORCE GRAPH
+// ========================================
+(function() {
+  const nodes = [
+    { id: 'claude', label: 'Claude Code', group: 'core', r: 25 },
+    { id: 'demerzel', label: 'Demerzel', group: 'core', r: 22 },
+    { id: 'ix', label: 'ix (Rust)', group: 'sci', r: 18 },
+    { id: 'tars', label: 'tars (F#)', group: 'sci', r: 20 },
+    { id: 'ga', label: 'ga (.NET)', group: 'music', r: 18 },
+    // Tool categories
+    { id: 'code-analysis', label: 'Code Analysis', group: 'infra', r: 10 },
+    { id: 'grammar-dsl', label: 'Grammar & DSL', group: 'meta', r: 10 },
+    { id: 'knowledge', label: 'Knowledge', group: 'human', r: 10 },
+    { id: 'reasoning', label: 'Reasoning', group: 'human', r: 9 },
+    { id: 'ml-tools', label: 'ML Tools', group: 'sci', r: 10 },
+    { id: 'music-theory', label: 'Music Theory', group: 'music', r: 10 },
+    { id: 'governance', label: 'Governance', group: 'gov', r: 10 },
+    { id: 'code-gen', label: 'Code Gen', group: 'infra', r: 9 },
+    { id: 'testing', label: 'Testing', group: 'infra', r: 8 },
+    { id: 'git-tools', label: 'Git', group: 'infra', r: 8 },
+    { id: 'wot-plans', label: 'WoT Plans', group: 'meta', r: 9 },
+    { id: 'search', label: 'Search & Opt', group: 'sci', r: 9 },
+    { id: 'neural', label: 'Neural Nets', group: 'sci', r: 9 },
+  ];
+
+  const links = [
+    { source: 'claude', target: 'ix', value: 3 },
+    { source: 'claude', target: 'tars', value: 4 },
+    { source: 'claude', target: 'ga', value: 3 },
+    { source: 'claude', target: 'demerzel', value: 5 },
+    { source: 'tars', target: 'code-analysis', value: 2 },
+    { source: 'tars', target: 'grammar-dsl', value: 3 },
+    { source: 'tars', target: 'knowledge', value: 2 },
+    { source: 'tars', target: 'reasoning', value: 2 },
+    { source: 'tars', target: 'code-gen', value: 2 },
+    { source: 'tars', target: 'testing', value: 1 },
+    { source: 'tars', target: 'git-tools', value: 1 },
+    { source: 'tars', target: 'wot-plans', value: 2 },
+    { source: 'ix', target: 'ml-tools', value: 3 },
+    { source: 'ix', target: 'search', value: 2 },
+    { source: 'ix', target: 'neural', value: 2 },
+    { source: 'ga', target: 'music-theory', value: 3 },
+    { source: 'demerzel', target: 'governance', value: 4 },
+    { source: 'demerzel', target: 'grammar-dsl', value: 2 },
+    { source: 'governance', target: 'grammar-dsl', value: 1 },
+    { source: 'ml-tools', target: 'grammar-dsl', value: 1 },
+    { source: 'music-theory', target: 'knowledge', value: 1 },
+  ];
+
+  const el = document.getElementById('mcp-graph');
+  const w = el.clientWidth, h = 400;
+
+  const svg = d3.select('#mcp-graph').append('svg').attr('width', w).attr('height', h);
+
+  const groupColor = d => colors[nodes.find(n => n.id === (d.id || d)).group] || '#8b949e';
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(80))
+    .force('charge', d3.forceManyBody().strength(-200))
+    .force('center', d3.forceCenter(w/2, h/2))
+    .force('collision', d3.forceCollide().radius(d => d.r + 5));
+
+  const link = svg.selectAll('line').data(links).join('line')
+    .attr('stroke', '#30363d').attr('stroke-width', d => d.value * 0.7).attr('stroke-opacity', 0.6);
+
+  const node = svg.selectAll('g.node').data(nodes).join('g').attr('class', 'node')
+    .call(d3.drag().on('start', (e,d) => { if(!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (e,d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end', (e,d) => { if(!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  node.append('circle').attr('r', d => d.r).attr('fill', d => colors[d.group] || '#8b949e')
+    .attr('fill-opacity', 0.8).attr('stroke', d => colors[d.group] || '#8b949e').attr('stroke-width', 1.5)
+    .style('cursor', 'grab')
+    .on('mouseover', (evt, d) => showTooltip(evt, `<b>${d.label}</b><br>Group: ${d.group}`))
+    .on('mouseout', hideTooltip);
+
+  node.append('text').attr('text-anchor', 'middle').attr('dy', d => d.r + 14)
+    .attr('fill', '#c9d1d9').attr('font-size', d => d.r > 15 ? '11px' : '9px')
+    .text(d => d.label);
+
+  sim.on('tick', () => {
+    link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+    node.attr('transform', d => `translate(${d.x},${d.y})`);
+  });
+})();
+
+// ========================================
+// 4. STREELING UNIVERSITY
+// ========================================
+(function() {
+  const depts = [
+    { name: 'Music', grammar: 'music-theory', courses: 1, color: colors.music },
+    { name: 'Guitar Studies', grammar: 'music-guitar-technique', courses: 1, color: colors.music },
+    { name: 'Musicology', grammar: 'music-musicology', courses: 1, color: colors.music },
+    { name: 'GA Academy', grammar: '(music)', courses: 2, color: colors.music },
+    { name: 'World Music', grammar: '(technique)', courses: 1, color: colors.music },
+    { name: 'Mathematics', grammar: 'sci-mathematical-proof', courses: 1, color: colors.sci },
+    { name: 'Physics', grammar: 'sci-acoustics-physics', courses: 1, color: colors.sci },
+    { name: 'Computer Science', grammar: 'sci-algorithms', courses: 1, color: colors.sci },
+    { name: 'Product Mgmt', grammar: 'gov-product-mgmt', courses: 1, color: colors.gov },
+    { name: 'Futurology', grammar: 'human-futurology', courses: 1, color: colors.human },
+    { name: 'Philosophy', grammar: 'human-philosophy', courses: 1, color: colors.human },
+    { name: 'Cognitive Sci', grammar: 'human-cognitive-sci', courses: 1, color: colors.human },
+    { name: 'Psychohistory', grammar: 'human-psychohistory', courses: 2, color: colors.human },
+  ];
+
+  const el = document.getElementById('university');
+  const w = el.clientWidth, h = 340;
+  const svg = d3.select('#university').append('svg').attr('width', w).attr('height', h);
+
+  const barH = 22, gap = 3, maxCourses = 2;
+  const xScale = d3.scaleLinear().domain([0, maxCourses]).range([0, w * 0.3]);
+
+  depts.forEach((d, i) => {
+    const y = i * (barH + gap) + 5;
+
+    svg.append('text').attr('x', 5).attr('y', y + 15)
+      .attr('fill', '#c9d1d9').attr('font-size', '11px').text(d.name);
+
+    svg.append('rect').attr('x', w * 0.38).attr('y', y + 2)
+      .attr('width', xScale(d.courses)).attr('height', barH - 4)
+      .attr('fill', d.color).attr('fill-opacity', 0.6).attr('rx', 3)
+      .style('cursor', 'pointer')
+      .on('mouseover', (evt) => showTooltip(evt, `<b>${d.name}</b><br>Courses: ${d.courses}<br>Grammar: ${d.grammar}`))
+      .on('mouseout', hideTooltip);
+
+    svg.append('text').attr('x', w * 0.38 + xScale(d.courses) + 6).attr('y', y + 15)
+      .attr('fill', d.color).attr('font-size', '10px').text(`${d.courses} course${d.courses>1?'s':''}`);
+
+    // Grammar indicator
+    svg.append('circle').attr('cx', w * 0.32).attr('cy', y + barH/2)
+      .attr('r', 4).attr('fill', d.color).attr('fill-opacity', 0.8);
+  });
+
+  svg.append('text').attr('x', w * 0.32).attr('y', h - 5)
+    .attr('text-anchor', 'middle').attr('fill', '#8b949e').attr('font-size', '9px')
+    .text('Grammar');
+  svg.append('text').attr('x', w * 0.5).attr('y', h - 5)
+    .attr('text-anchor', 'middle').attr('fill', '#8b949e').attr('font-size', '9px')
+    .text('Courses');
+})();
+
+// ========================================
+// 5. BS DETECTOR (Client-side heuristic)
+// ========================================
+function analyzeBs() {
+  const text = document.getElementById('bs-input').value;
+  if (!text.trim()) return;
+
+  const buzzwords = ['leverage','synergize','optimize','disrupt','ideate','democratize',
+    'operationalize','productize','evangelize','unprecedented','proprietary','state-of-the-art',
+    'next-generation','enterprise-grade','scalable','paradigm','ecosystem','flywheel','moat',
+    'north star','stakeholder','alignment','transformation','innovative','game-changing',
+    'best-in-class','world-class','bleeding-edge','mission-critical','actionable insights',
+    'drive impact','unlock value','move the needle','at scale','holistic','synergy',
+    'core competencies','value proposition','thought leadership','deep dive','circle back',
+    'take offline','double-click','peel back','level-set','bandwidth','runway','optics',
+    'reimagine','future-proof','empower','activate','curate','authentic','radical candor',
+    'psychological safety','growth mindset','fail forward','10x','crushing it'];
+
+  const words = text.toLowerCase().split(/\s+/);
+  const wordCount = words.length;
+
+  // Buzzword density
+  let buzzCount = 0;
+  buzzwords.forEach(b => { if (text.toLowerCase().includes(b)) buzzCount++; });
+  const buzzDensity = Math.min(buzzCount / Math.max(wordCount / 5, 1), 1.0);
+
+  // Specificity: does it have numbers, dates, names?
+  const hasNumbers = /\d+/.test(text);
+  const hasDates = /\d{4}|\bjanuary\b|\bmonday\b|\bq[1-4]\b/i.test(text);
+  const specificity = (hasNumbers ? 0.3 : 0) + (hasDates ? 0.3 : 0) + (wordCount < 20 ? 0.2 : 0);
+
+  // Commitment: who/what/when
+  const hasWho = /\bi\b|\bwe\b|\bteam\b|\b[A-Z][a-z]+\b/.test(text);
+  const hasWhen = /\bby\b|\buntil\b|\btomorrow\b|\bnext\b|\bthis week\b/i.test(text);
+  const commitment = (hasWho ? 0.3 : 0) + (hasWhen ? 0.4 : 0);
+
+  // BS Score
+  const bsRaw = (buzzDensity * 0.4) + ((1 - specificity) * 0.3) + ((1 - commitment) * 0.3);
+  const bs = Math.min(Math.max(bsRaw, 0), 1);
+
+  const levels = ['Clear', 'Mild', 'Moderate', 'Serious', 'Pure BS'];
+  const levelColors = ['#4cb050', '#7289da', '#e5c07b', '#e06c75', '#ff4444'];
+  const idx = Math.min(Math.floor(bs * 5), 4);
+
+  const resultDiv = document.getElementById('bs-result');
+  resultDiv.innerHTML = `
+    <div style="margin-bottom:10px;">
+      <div style="background:#21262d; border-radius:6px; height:24px; overflow:hidden;">
+        <div style="background:${levelColors[idx]}; width:${bs*100}%; height:100%; border-radius:6px; transition:width 0.5s;"></div>
+      </div>
+      <div style="display:flex; justify-content:space-between; margin-top:4px;">
+        <span style="color:${levelColors[idx]}; font-weight:bold; font-size:14px;">${levels[idx]}</span>
+        <span style="color:#8b949e; font-size:12px;">${(bs*100).toFixed(0)}% BS</span>
+      </div>
+    </div>
+    <div style="font-size:11px; color:#8b949e;">
+      Buzzword density: ${(buzzDensity*100).toFixed(0)}% (${buzzCount} found)<br>
+      Specificity: ${(specificity*100).toFixed(0)}%<br>
+      Commitment: ${(commitment*100).toFixed(0)}%<br>
+      <span style="color:#58a6ff;">Tetravalent: ${bs < 0.3 ? 'T (real content)' : bs < 0.5 ? 'U (substance unclear)' : 'C (contradictory)'}</span>
+    </div>
+  `;
+}
+
+// Run BS detector on load with default text
+analyzeBs();
+</script>
+</body>
+</html>
