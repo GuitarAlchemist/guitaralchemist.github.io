@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compounding Metrics — D_c Dashboard</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+    #container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+    .subtitle { font-size: 13px; color: #8b949e; margin-bottom: 24px; }
+    .subtitle a { color: #58a6ff; text-decoration: none; }
+    .subtitle a:hover { text-decoration: underline; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; }
+    .card h3 { font-size: 13px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .card .value { font-size: 48px; font-weight: 700; line-height: 1; }
+    .card .label { font-size: 12px; color: #8b949e; margin-top: 4px; }
+
+    .zone-golden { color: #4cb050; }
+    .zone-superlinear { color: #58a6ff; }
+    .zone-linear { color: #e5c07b; }
+    .zone-warning { color: #f0883e; }
+    .zone-critical { color: #e06c75; }
+    .zone-runaway { color: #c678dd; }
+
+    .gauge-container { position: relative; height: 120px; display: flex; align-items: center; justify-content: center; }
+
+    .chart-card { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+    .chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .chart-card svg { display: block; }
+
+    .zone-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 11px; }
+    .zone-legend-item { display: flex; align-items: center; gap: 4px; }
+    .zone-swatch { width: 12px; height: 4px; border-radius: 2px; }
+
+    .components-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    @media (max-width: 768px) { .components-grid { grid-template-columns: 1fr; } }
+
+    .bar-label { font-size: 12px; color: #c9d1d9; margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .bar-bg { background: #21262d; border-radius: 4px; height: 8px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+    .formula-box { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 16px; font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 13px; color: #c9d1d9; margin-bottom: 16px; line-height: 1.6; }
+    .formula-box .comment { color: #8b949e; }
+    .formula-box .keyword { color: #c678dd; }
+    .formula-box .number { color: #f0883e; }
+    .formula-box .zone { color: #4cb050; }
+
+    .anti-pattern { background: #161b22; border-left: 3px solid #e06c75; padding: 12px 16px; border-radius: 0 8px 8px 0; margin-bottom: 8px; }
+    .anti-pattern .name { font-weight: 600; font-size: 13px; color: #e06c75; }
+    .anti-pattern .desc { font-size: 12px; color: #8b949e; margin-top: 2px; }
+
+    #controls { position: fixed; top: 16px; right: 16px; z-index: 50; display: flex; gap: 8px; }
+    #controls a {
+      background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+      padding: 6px 12px; border-radius: 6px; text-decoration: none; font-size: 12px;
+    }
+    #controls a:hover { background: #30363d; }
+
+    .power-law-chart { height: 200px; }
+    .momentum-indicator { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .momentum-arrow { font-size: 24px; }
+    .momentum-arrow.up { color: #4cb050; }
+    .momentum-arrow.stable { color: #58a6ff; }
+    .momentum-arrow.down { color: #e06c75; }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <a href="/">Home</a>
+    <a href="https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/compounding-metrics-policy.yaml" target="_blank">Policy</a>
+    <a href="https://github.com/GuitarAlchemist/Demerzel/blob/master/logic/fractal-compounding.md" target="_blank">Theory</a>
+  </div>
+
+  <div id="container">
+    <h1>Compounding Metrics Dashboard</h1>
+    <p class="subtitle">
+      D<sub>c</sub> = log(value<sub>n+1</sub>) / log(value<sub>n</sub>) — <a href="https://github.com/GuitarAlchemist/Demerzel/blob/master/logic/fractal-compounding.md" target="_blank">fractal compounding theory</a> |
+      Golden zone: 1.2–1.6
+    </p>
+
+    <!-- Top cards -->
+    <div class="grid" id="top-cards"></div>
+
+    <!-- D_c Timeline -->
+    <div class="chart-card">
+      <h3>D<sub>c</sub> Over Time</h3>
+      <div id="dc-timeline"></div>
+      <div class="zone-legend">
+        <div class="zone-legend-item"><div class="zone-swatch" style="background:#e06c75"></div>Critical (&lt;0.8)</div>
+        <div class="zone-legend-item"><div class="zone-swatch" style="background:#f0883e"></div>Warning (0.8–0.95)</div>
+        <div class="zone-legend-item"><div class="zone-swatch" style="background:#e5c07b"></div>Linear (0.95–1.0)</div>
+        <div class="zone-legend-item"><div class="zone-swatch" style="background:#58a6ff"></div>Superlinear (1.0–1.2)</div>
+        <div class="zone-legend-item"><div class="zone-swatch" style="background:#4cb050"></div>Golden (1.2–1.6)</div>
+        <div class="zone-legend-item"><div class="zone-swatch" style="background:#c678dd"></div>Runaway (&gt;1.6)</div>
+      </div>
+    </div>
+
+    <!-- Value Components -->
+    <div class="chart-card">
+      <h3>ERGOL Components (Weighted Value)</h3>
+      <div class="components-grid" id="components"></div>
+    </div>
+
+    <!-- Formula -->
+    <div class="chart-card">
+      <h3>Formula</h3>
+      <div class="formula-box">
+        <span class="comment">-- Composite value per cycle</span><br>
+        <span class="keyword">value</span><sub>n</sub> = citations × <span class="number">0.35</span>
+        + pdca × <span class="number">0.25</span>
+        + u_to_t × <span class="number">0.25</span>
+        + transfers × <span class="number">0.15</span><br><br>
+        <span class="comment">-- Compounding dimension</span><br>
+        <span class="keyword">D<sub>c</sub></span> = log(<span class="keyword">value</span><sub>n+1</sub>) / log(<span class="keyword">value</span><sub>n</sub>)<br><br>
+        <span class="comment">-- Golden zone</span><br>
+        <span class="zone">1.2 ≤ D<sub>c</sub> ≤ 1.6</span> → healthy superlinear compounding
+      </div>
+    </div>
+
+    <!-- Power Law -->
+    <div class="chart-card">
+      <h3>Citation Power Law Distribution</h3>
+      <div id="power-law" class="power-law-chart"></div>
+    </div>
+
+    <!-- Anti-Patterns -->
+    <div class="chart-card">
+      <h3>Anti-Pattern Detection</h3>
+      <div id="anti-patterns"></div>
+    </div>
+  </div>
+
+<script>
+// --- SIMULATED DATA (replace with state/driver/dc-velocity.json when available) ---
+const cycles = [
+  { id: 'C001', date: '2026-03-20', citations: 5, pdca: 2, u_to_t: 3, transfers: 1, value: null, dc: null },
+  { id: 'C002', date: '2026-03-21', citations: 12, pdca: 4, u_to_t: 5, transfers: 2, value: null, dc: null },
+  { id: 'C003', date: '2026-03-22', citations: 28, pdca: 7, u_to_t: 8, transfers: 4, value: null, dc: null },
+  { id: 'C004', date: '2026-03-23', citations: 45, pdca: 9, u_to_t: 12, transfers: 6, value: null, dc: null },
+  { id: 'C005', date: '2026-03-24', citations: 82, pdca: 14, u_to_t: 18, transfers: 9, value: null, dc: null },
+];
+
+// Weights from policy
+const W = { c: 0.35, p: 0.25, u: 0.25, k: 0.15 };
+
+// Compute values and D_c
+cycles.forEach((c, i) => {
+  c.value = c.citations * W.c + c.pdca * W.p + c.u_to_t * W.u + c.transfers * W.k;
+  if (i > 0 && cycles[i-1].value > 1) {
+    c.dc = Math.log(c.value) / Math.log(cycles[i-1].value);
+  }
+});
+
+const latest = cycles[cycles.length - 1];
+const prev = cycles[cycles.length - 2];
+
+function getZone(dc) {
+  if (dc === null) return { name: 'N/A', cls: '' };
+  if (dc >= 1.6) return { name: 'Runaway', cls: 'zone-runaway' };
+  if (dc >= 1.2) return { name: 'Golden', cls: 'zone-golden' };
+  if (dc >= 1.0) return { name: 'Superlinear', cls: 'zone-superlinear' };
+  if (dc >= 0.95) return { name: 'Linear', cls: 'zone-linear' };
+  if (dc >= 0.8) return { name: 'Warning', cls: 'zone-warning' };
+  return { name: 'Critical', cls: 'zone-critical' };
+}
+
+const zone = getZone(latest.dc);
+
+// Learning momentum
+const pL = cycles.length >= 3
+  ? (cycles[cycles.length-1].u_to_t - cycles[0].u_to_t) / cycles.length
+  : 0;
+
+// --- TOP CARDS ---
+const cardsDiv = d3.select('#top-cards');
+
+const cards = [
+  { title: 'D_c Current', value: latest.dc ? latest.dc.toFixed(3) : 'N/A', label: zone.name, cls: zone.cls },
+  { title: 'Composite Value', value: latest.value.toFixed(1), label: `ERGOL (cycle ${latest.id})`, cls: 'zone-superlinear' },
+  { title: 'Learning Momentum', value: pL >= 0 ? '+' + pL.toFixed(2) : pL.toFixed(2), label: pL >= 0 ? 'Growing' : 'Declining', cls: pL >= 0 ? 'zone-golden' : 'zone-critical' },
+];
+
+cards.forEach(c => {
+  const card = cardsDiv.append('div').attr('class', 'card');
+  card.append('h3').text(c.title);
+  card.append('div').attr('class', 'value ' + c.cls).text(c.value);
+  card.append('div').attr('class', 'label').text(c.label);
+});
+
+// --- D_c TIMELINE CHART ---
+const margin = { top: 20, right: 30, bottom: 30, left: 50 };
+const width = document.getElementById('dc-timeline').offsetWidth - margin.left - margin.right;
+const height = 250 - margin.top - margin.bottom;
+
+const svg = d3.select('#dc-timeline').append('svg')
+  .attr('width', width + margin.left + margin.right)
+  .attr('height', height + margin.top + margin.bottom)
+  .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+const dcData = cycles.filter(c => c.dc !== null);
+const x = d3.scalePoint().domain(dcData.map(d => d.id)).range([0, width]).padding(0.5);
+const y = d3.scaleLinear().domain([0.5, 2.0]).range([height, 0]);
+
+// Zone bands
+const zones = [
+  { y0: 0.0, y1: 0.8, color: '#e06c75', opacity: 0.08 },
+  { y0: 0.8, y1: 0.95, color: '#f0883e', opacity: 0.08 },
+  { y0: 0.95, y1: 1.0, color: '#e5c07b', opacity: 0.08 },
+  { y0: 1.0, y1: 1.2, color: '#58a6ff', opacity: 0.08 },
+  { y0: 1.2, y1: 1.6, color: '#4cb050', opacity: 0.12 },
+  { y0: 1.6, y1: 2.0, color: '#c678dd', opacity: 0.08 },
+];
+
+zones.forEach(z => {
+  svg.append('rect')
+    .attr('x', 0).attr('width', width)
+    .attr('y', y(Math.min(z.y1, 2.0))).attr('height', y(Math.max(z.y0, 0.5)) - y(Math.min(z.y1, 2.0)))
+    .attr('fill', z.color).attr('opacity', z.opacity);
+});
+
+// Golden zone borders
+svg.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(1.2)).attr('y2', y(1.2))
+  .attr('stroke', '#4cb050').attr('stroke-width', 1).attr('stroke-dasharray', '4,4').attr('opacity', 0.5);
+svg.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(1.6)).attr('y2', y(1.6))
+  .attr('stroke', '#4cb050').attr('stroke-width', 1).attr('stroke-dasharray', '4,4').attr('opacity', 0.5);
+// D_c = 1.0 line
+svg.append('line').attr('x1', 0).attr('x2', width).attr('y1', y(1.0)).attr('y2', y(1.0))
+  .attr('stroke', '#e5c07b').attr('stroke-width', 1).attr('stroke-dasharray', '2,4').attr('opacity', 0.4);
+
+// Line
+const line = d3.line().x(d => x(d.id)).y(d => y(d.dc)).curve(d3.curveMonotoneX);
+svg.append('path').datum(dcData).attr('d', line)
+  .attr('fill', 'none').attr('stroke', '#58a6ff').attr('stroke-width', 2.5);
+
+// Dots
+svg.selectAll('.dot').data(dcData).enter().append('circle')
+  .attr('cx', d => x(d.id)).attr('cy', d => y(d.dc)).attr('r', 6)
+  .attr('fill', d => { const z = getZone(d.dc); return z.cls.replace('zone-', '').replace('golden','#4cb050').replace('superlinear','#58a6ff').replace('linear','#e5c07b').replace('warning','#f0883e').replace('critical','#e06c75').replace('runaway','#c678dd'); })
+  .attr('stroke', '#0d1117').attr('stroke-width', 2);
+
+// Labels on dots
+svg.selectAll('.dc-label').data(dcData).enter().append('text')
+  .attr('x', d => x(d.id)).attr('y', d => y(d.dc) - 12)
+  .attr('text-anchor', 'middle').attr('fill', '#c9d1d9').attr('font-size', 11).attr('font-weight', 600)
+  .text(d => d.dc.toFixed(2));
+
+// Axes
+svg.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x))
+  .selectAll('text').attr('fill', '#8b949e');
+svg.append('g').call(d3.axisLeft(y).ticks(6))
+  .selectAll('text').attr('fill', '#8b949e');
+svg.selectAll('.domain, .tick line').attr('stroke', '#30363d');
+
+// --- COMPONENT BARS ---
+const compDiv = d3.select('#components');
+const maxVal = Math.max(latest.citations, latest.pdca, latest.u_to_t, latest.transfers, 1);
+const components = [
+  { name: 'Citations', value: latest.citations, weight: W.c, color: '#58a6ff' },
+  { name: 'PDCA Cycles', value: latest.pdca, weight: W.p, color: '#4cb050' },
+  { name: 'U→T Transitions', value: latest.u_to_t, weight: W.u, color: '#c678dd' },
+  { name: 'Knowledge Transfers', value: latest.transfers, weight: W.k, color: '#f0883e' },
+];
+
+components.forEach(c => {
+  const div = compDiv.append('div');
+  div.append('div').attr('class', 'bar-label')
+    .html(`<span>${c.name} <span style="color:#8b949e">(w=${c.weight})</span></span><span>${c.value}</span>`);
+  const bg = div.append('div').attr('class', 'bar-bg');
+  bg.append('div').attr('class', 'bar-fill')
+    .style('width', (c.value / maxVal * 100) + '%')
+    .style('background', c.color);
+});
+
+// --- POWER LAW CHART ---
+// Simulated citation distribution (sorted desc)
+const artifacts = [
+  { name: 'Constitution', citations: 42 },
+  { name: 'Alignment Policy', citations: 35 },
+  { name: 'Tetravalent Logic', citations: 28 },
+  { name: 'IxQL Grammar', citations: 22 },
+  { name: 'Demerzel Persona', citations: 18 },
+  { name: 'Driver Skill', citations: 15 },
+  { name: 'Seldon Persona', citations: 12 },
+  { name: 'Staleness Policy', citations: 9 },
+  { name: 'MetaSync Skill', citations: 7 },
+  { name: 'BS Detector', citations: 6 },
+  { name: 'Cybernetics Grammar', citations: 4 },
+  { name: 'MetaQA Grammar', citations: 3 },
+  { name: 'Semiotics Grammar', citations: 2 },
+  { name: 'Network Sci Grammar', citations: 2 },
+  { name: 'Info Theory Grammar', citations: 1 },
+].sort((a, b) => b.citations - a.citations);
+
+const totalCitations = artifacts.reduce((s, a) => s + a.citations, 0);
+const top20pct = Math.ceil(artifacts.length * 0.2);
+const top20citations = artifacts.slice(0, top20pct).reduce((s, a) => s + a.citations, 0);
+const powerLawRatio = top20citations / totalCitations;
+const isPowerLaw = powerLawRatio > 0.6;
+const isFragile = powerLawRatio > 0.9;
+
+const plMargin = { top: 10, right: 20, bottom: 40, left: 140 };
+const plWidth = document.getElementById('power-law').offsetWidth - plMargin.left - plMargin.right;
+const plHeight = 200 - plMargin.top - plMargin.bottom;
+
+const plSvg = d3.select('#power-law').append('svg')
+  .attr('width', plWidth + plMargin.left + plMargin.right)
+  .attr('height', plHeight + plMargin.top + plMargin.bottom)
+  .append('g').attr('transform', `translate(${plMargin.left},${plMargin.top})`);
+
+const plX = d3.scaleLinear().domain([0, d3.max(artifacts, d => d.citations)]).range([0, plWidth]);
+const plY = d3.scaleBand().domain(artifacts.map(d => d.name)).range([0, plHeight]).padding(0.2);
+
+plSvg.selectAll('.bar').data(artifacts).enter().append('rect')
+  .attr('x', 0).attr('y', d => plY(d.name))
+  .attr('width', d => plX(d.citations)).attr('height', plY.bandwidth())
+  .attr('fill', (d, i) => i < top20pct ? '#f0883e' : '#30363d')
+  .attr('rx', 3);
+
+plSvg.selectAll('.bar-val').data(artifacts).enter().append('text')
+  .attr('x', d => plX(d.citations) + 4).attr('y', d => plY(d.name) + plY.bandwidth() / 2)
+  .attr('dy', '0.35em').attr('fill', '#8b949e').attr('font-size', 10)
+  .text(d => d.citations);
+
+plSvg.append('g').call(d3.axisLeft(plY)).selectAll('text').attr('fill', '#c9d1d9').attr('font-size', 10);
+plSvg.selectAll('.domain, .tick line').attr('stroke', '#30363d');
+
+// Power law annotation
+plSvg.append('text').attr('x', plWidth).attr('y', plHeight + 28).attr('text-anchor', 'end')
+  .attr('fill', isPowerLaw ? (isFragile ? '#e06c75' : '#4cb050') : '#e5c07b').attr('font-size', 11)
+  .text(`Top 20% = ${(powerLawRatio * 100).toFixed(0)}% of citations — ${isFragile ? 'FRAGILE' : isPowerLaw ? 'Healthy power law' : 'No power law detected'}`);
+
+// --- ANTI-PATTERNS ---
+const apDiv = d3.select('#anti-patterns');
+const antiPatterns = [
+  { name: 'LOLLI Inflation', desc: 'Artifact count growing 3x faster than citations over 3 cycles', status: 'clear', color: '#4cb050' },
+  { name: 'Silent D_c', desc: 'D_c report not generated for 2+ cycles', status: 'clear', color: '#4cb050' },
+  { name: 'Citation Hoarding', desc: 'Single artifact > 30% of all citations', status: artifacts[0].citations / totalCitations > 0.3 ? 'warning' : 'clear', color: artifacts[0].citations / totalCitations > 0.3 ? '#f0883e' : '#4cb050' },
+  { name: 'PDCA Graveyard', desc: 'PDCA cycles in Plan/Do for > 14 days', status: 'clear', color: '#4cb050' },
+];
+
+antiPatterns.forEach(ap => {
+  const div = apDiv.append('div').attr('class', 'anti-pattern').style('border-left-color', ap.color);
+  div.append('div').attr('class', 'name').style('color', ap.color).text(`${ap.status === 'clear' ? '✓' : '⚠'} ${ap.name}`);
+  div.append('div').attr('class', 'desc').text(ap.desc);
+});
+</script>
+</body>
+</html>
