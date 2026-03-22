@@ -412,70 +412,277 @@ function hideTooltip() { tooltip.style('display','none'); }
 })();
 
 // ========================================
-// 5. BS DETECTOR (Client-side heuristic)
+// 5. BS DETECTOR v2 — Full 4-test + rhetorical device scanner
 // ========================================
+
+const BUZZWORDS = {
+  consulting: ['de-risk','right-size','streamline','transform','reimagine','architect','rationalize','harmonize',
+    'unlock','accelerate','industrialize','monetize','operating model','target state','value realization',
+    'go-to-market','digital backbone','maturity model','capability assessment','transformation roadmap',
+    'value chain','phased approach','quick wins','dedicated workstream','center of excellence',
+    'burning platform','strategic imperatives','four horizons','war room','clean-sheet','zero-based'],
+  ai: ['proprietary','state-of-the-art','next-generation','enterprise-grade','production-ready','multimodal',
+    'self-learning','explainable','responsible','real-time','end-to-end','full-stack','AI platform',
+    'intelligence layer','foundation model','agentic framework','reasoning engine','cognitive architecture',
+    'neural fabric','unprecedented insights','10x productivity','autonomous decision-making',
+    'human-like understanding','superhuman performance','zero-shot','emergent capabilities','AGI',
+    'at scale','democratize intelligence','neuro-symbolic','sentient analytics','quantum AI'],
+  startup: ['uber for','airbnb for','disrupt','TAM','product-market fit','exponential growth',
+    'viral adoption','unit economics','path to profitability','reimagining','democratizing access',
+    'on a mission','just getting started','massive and growing','impossible to overstate'],
+  corporate: ['reaffirming','deepening','doubling down','accelerating','strong fundamentals',
+    'market-leading','best-in-class team','robust pipeline','proven track record','unwavering focus',
+    'incredibly excited','testament to our team','laser-focused','just getting started',
+    'winning culture','disciplined execution','operational rigor','workforce adjustment','restructuring'],
+  hr: ['culture of','greatest asset','competitive advantage','unlimited PTO','psychological safety',
+    'radical candor','growth mindset','whole-self','work-life balance','fast-paced environment',
+    'wear many hats','like a family','empowerment','belonging','inclusive workplace'],
+  marketing: ['empower','elevate','amplify','activate','curate','humanize','connect authentically',
+    'drive engagement','build community','tell their story','brand DNA','emotional resonance',
+    'content ecosystem','experience architecture','omnichannel','customer-centric','data-driven storytelling'],
+  motivational: ['manifest','unlock your','embrace','step into','authentic self','growth mindset',
+    'abundance','inner champion','higher calling','best life','morning routine','10x mindset',
+    'flow state','failing forward','trusting the process','betting on yourself','hustle','grind',
+    'crushing it','no excuses','comfort zone'],
+  political: ['the American people','deserve better','come together','work across the aisle',
+    'build a better future','protect our values','honest conversation','great question',
+    'bigger picture','many factors','been very clear','the real issue','what\'s important'],
+  academic: ['novel framework','problematize','research lacuna','nuanced understanding',
+    'further research is needed','preliminary findings','interdisciplinary','transdisciplinary',
+    'post-structural','phenomenological','operationalize the construct','interrogating'],
+  governance: ['meta-governance','governance of governance','multi-stakeholder review','formal assessment',
+    'cross-functional alignment','governance audit','constitutional review','the spirit of',
+    'established best practices','artifact lifecycle management','process compliance']
+};
+
+const EVASION_PATTERNS = [
+  { pattern: /that's (a great|an excellent|a good) question/i, name: 'Deflection (compliment the question)' },
+  { pattern: /let me (reframe|rephrase|put it this way)/i, name: 'Reframing' },
+  { pattern: /it's (more )?(nuanced|complex|complicated) than/i, name: 'Complexity shield' },
+  { pattern: /we('ll| will) (have more|share more|announce) soon/i, name: 'Future promise' },
+  { pattern: /what about \w+/i, name: 'Whataboutism' },
+  { pattern: /I ('d|would)n't characterize it that way/i, name: 'Deflection (recharacterize)' },
+  { pattern: /with my \d+ years/i, name: 'Credentialism' },
+  { pattern: /you('d| would) need to understand the context/i, name: 'Complexity shield' },
+  { pattern: /it is what it is/i, name: 'Thought-terminating cliche' },
+  { pattern: /at the end of the day/i, name: 'Thought-terminating cliche' },
+  { pattern: /let's take this offline/i, name: 'Meeting deflection' },
+  { pattern: /I think we're aligned/i, name: 'False consensus' },
+  { pattern: /let's (not )?boil the ocean/i, name: 'Scope deflection' },
+  { pattern: /circle back/i, name: 'Deferral' },
+  { pattern: /deep dive/i, name: 'Buzzword (depth theater)' },
+  { pattern: /move the needle/i, name: 'Buzzword (impact theater)' },
+  { pattern: /north star/i, name: 'Buzzword (direction theater)' },
+];
+
+const WEASEL_PATTERNS = [
+  { pattern: /some people say/i, name: 'Weasel: unattributed claim' },
+  { pattern: /it is widely believed/i, name: 'Weasel: false consensus' },
+  { pattern: /experts agree/i, name: 'Weasel: appeal to unnamed authority' },
+  { pattern: /studies show/i, name: 'Weasel: unattributed research' },
+  { pattern: /many would argue/i, name: 'Weasel: hypothetical consensus' },
+  { pattern: /it goes without saying/i, name: 'Weasel: assumed agreement' },
+  { pattern: /\d+ out of \d+ (recommend|agree|prefer)/i, name: 'False precision' },
+  { pattern: /\d+% more (efficient|effective|productive)/i, name: 'False precision (compared to what?)' },
+];
+
 function analyzeBs() {
   const text = document.getElementById('bs-input').value;
   if (!text.trim()) return;
 
-  const buzzwords = ['leverage','synergize','optimize','disrupt','ideate','democratize',
-    'operationalize','productize','evangelize','unprecedented','proprietary','state-of-the-art',
-    'next-generation','enterprise-grade','scalable','paradigm','ecosystem','flywheel','moat',
-    'north star','stakeholder','alignment','transformation','innovative','game-changing',
-    'best-in-class','world-class','bleeding-edge','mission-critical','actionable insights',
-    'drive impact','unlock value','move the needle','at scale','holistic','synergy',
-    'core competencies','value proposition','thought leadership','deep dive','circle back',
-    'take offline','double-click','peel back','level-set','bandwidth','runway','optics',
-    'reimagine','future-proof','empower','activate','curate','authentic','radical candor',
-    'psychological safety','growth mindset','fail forward','10x','crushing it'];
-
-  const words = text.toLowerCase().split(/\s+/);
+  const lower = text.toLowerCase();
+  const words = lower.split(/\s+/).filter(w => w.length > 0);
   const wordCount = words.length;
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const sentenceCount = Math.max(sentences.length, 1);
 
-  // Buzzword density
-  let buzzCount = 0;
-  buzzwords.forEach(b => { if (text.toLowerCase().includes(b)) buzzCount++; });
-  const buzzDensity = Math.min(buzzCount / Math.max(wordCount / 5, 1), 1.0);
+  // === TEST 1: SPECIFICITY ===
+  const hasNumbers = /\d+(\.\d+)?(%|\$|ms|MB|GB|hrs?|days?|weeks?)/.test(text);
+  const hasDates = /\b(20\d{2}|january|february|march|april|may|june|july|august|september|october|november|december|monday|tuesday|wednesday|thursday|friday|q[1-4])\b/i.test(text);
+  const hasProperNouns = /\b[A-Z][a-z]{2,}\b/.test(text) && !/^[A-Z]/.test(text.trim());
+  const hasUrls = /https?:\/\/|www\./i.test(text);
+  const specificity = Math.min(
+    (hasNumbers ? 0.25 : 0) + (hasDates ? 0.25 : 0) + (hasProperNouns ? 0.2 : 0) + (hasUrls ? 0.3 : 0),
+    1.0
+  );
 
-  // Specificity: does it have numbers, dates, names?
-  const hasNumbers = /\d+/.test(text);
-  const hasDates = /\d{4}|\bjanuary\b|\bmonday\b|\bq[1-4]\b/i.test(text);
-  const specificity = (hasNumbers ? 0.3 : 0) + (hasDates ? 0.3 : 0) + (wordCount < 20 ? 0.2 : 0);
+  // === TEST 2: FALSIFIABILITY ===
+  const hasConditional = /\bif\b.*\bthen\b|\bwhen\b.*\bwill\b/i.test(text);
+  const hasMetric = /\b(\d+%|\$\d|increased by|decreased by|reduced|improved|from \d+ to \d+)\b/i.test(text);
+  const hasPrediction = /\bwill\b|\bexpect\b|\bpredict\b|\bshould result in\b/i.test(text);
+  const hasNegatable = /\bnot\b|\bnever\b|\bfailed\b|\bwrong\b|\bmistake\b|\blimitation\b/i.test(text);
+  const falsifiability = Math.min(
+    (hasConditional ? 0.3 : 0) + (hasMetric ? 0.3 : 0) + (hasPrediction ? 0.2 : 0) + (hasNegatable ? 0.2 : 0),
+    1.0
+  );
 
-  // Commitment: who/what/when
-  const hasWho = /\bi\b|\bwe\b|\bteam\b|\b[A-Z][a-z]+\b/.test(text);
-  const hasWhen = /\bby\b|\buntil\b|\btomorrow\b|\bnext\b|\bthis week\b/i.test(text);
-  const commitment = (hasWho ? 0.3 : 0) + (hasWhen ? 0.4 : 0);
+  // === TEST 3: CONTENT DENSITY ===
+  const fillerWords = ['very','really','just','basically','actually','literally','absolutely',
+    'incredibly','amazingly','truly','highly','extremely','significantly','substantially',
+    'essentially','fundamentally','strategically','holistically','proactively','robust',
+    'seamless','cutting-edge','innovative','revolutionary','game-changing','world-class',
+    'best-in-class','bleeding-edge','mission-critical','enterprise-grade'];
+  let fillerCount = 0;
+  fillerWords.forEach(f => { const re = new RegExp('\\b' + f + '\\b', 'gi'); const m = text.match(re); if(m) fillerCount += m.length; });
+  const contentDensity = Math.max(1 - (fillerCount / Math.max(wordCount * 0.3, 1)), 0);
 
-  // BS Score
-  const bsRaw = (buzzDensity * 0.4) + ((1 - specificity) * 0.3) + ((1 - commitment) * 0.3);
-  const bs = Math.min(Math.max(bsRaw, 0), 1);
+  // === TEST 4: COMMITMENT ===
+  const hasWho = /\bI will\b|\bwe will\b|\b[A-Z][a-z]+ will\b|\bthe team will\b|\b[A-Z][a-z]+ is responsible\b/i.test(text);
+  const hasWhat = /\b(ship|deliver|build|fix|create|implement|launch|release|deploy|complete|write|remove|add)\b/i.test(text);
+  const hasWhen = /\bby (monday|tuesday|wednesday|thursday|friday|january|february|march|april|may|june|july|august|september|october|november|december|\d{4}|next week|end of|tomorrow|tonight)\b/i.test(text) || /\bin \d+ (days|weeks|months|sprints)\b/i.test(text);
+  const commitment = Math.min(
+    (hasWho ? 0.35 : 0) + (hasWhat ? 0.3 : 0) + (hasWhen ? 0.35 : 0),
+    1.0
+  );
 
-  const levels = ['Clear', 'Mild', 'Moderate', 'Serious', 'Pure BS'];
+  // === BUZZWORD SCAN ===
+  let buzzMatches = [];
+  let totalBuzzCount = 0;
+  const domainScores = {};
+  Object.entries(BUZZWORDS).forEach(([domain, words]) => {
+    let count = 0;
+    words.forEach(b => {
+      if (lower.includes(b.toLowerCase())) { count++; totalBuzzCount++; buzzMatches.push({ word: b, domain }); }
+    });
+    domainScores[domain] = count;
+  });
+  const buzzDensity = Math.min(totalBuzzCount / Math.max(wordCount / 4, 1), 1.0);
+
+  // === RHETORICAL DEVICE SCAN ===
+  let devicesFound = [];
+  EVASION_PATTERNS.forEach(p => { if (p.pattern.test(text)) devicesFound.push(p.name); });
+  WEASEL_PATTERNS.forEach(p => { if (p.pattern.test(text)) devicesFound.push(p.name); });
+  const rhetoricalDensity = devicesFound.length / sentenceCount;
+
+  // === COMPOSITE SCORE ===
+  const bs = Math.min(Math.max(
+    (buzzDensity * 0.25) +
+    ((1 - specificity) * 0.2) +
+    ((1 - falsifiability) * 0.15) +
+    ((1 - contentDensity) * 0.15) +
+    ((1 - commitment) * 0.15) +
+    (Math.min(rhetoricalDensity, 1) * 0.1),
+    0), 1);
+
+  // === FUZZY MEMBERSHIP (tetravalent) ===
+  const fuzzyT = Math.max(1 - bs * 1.5, 0);
+  const fuzzyC = Math.min(bs * 1.3, 1);
+  const fuzzyU = Math.max(0.5 - Math.abs(bs - 0.5), 0) * 2;
+  const fuzzyF = 0;
+  const fuzzyTotal = fuzzyT + fuzzyF + fuzzyU + fuzzyC;
+  const tetra = {
+    T: (fuzzyT / fuzzyTotal * 100).toFixed(0),
+    F: (fuzzyF / fuzzyTotal * 100).toFixed(0),
+    U: (fuzzyU / fuzzyTotal * 100).toFixed(0),
+    C: (fuzzyC / fuzzyTotal * 100).toFixed(0)
+  };
+
+  // === DOMAIN DETECTION ===
+  const topDomain = Object.entries(domainScores).sort((a,b) => b[1]-a[1])[0];
+
+  // === RENDER ===
+  const levels = ['Clear', 'Mild BS', 'Moderate BS', 'Serious BS', 'Pure BS'];
   const levelColors = ['#4cb050', '#7289da', '#e5c07b', '#e06c75', '#ff4444'];
+  const levelEmoji = ['&#9989;', '&#128993;', '&#9888;&#65039;', '&#128308;', '&#128165;'];
   const idx = Math.min(Math.floor(bs * 5), 4);
+
+  // Test bar helper
+  const testBar = (label, value, invert) => {
+    const v = invert ? (1 - value) : value;
+    const barColor = v > 0.6 ? '#4cb050' : v > 0.3 ? '#e5c07b' : '#e06c75';
+    return `<div style="display:flex;align-items:center;gap:8px;margin:3px 0;">
+      <span style="width:100px;font-size:11px;color:#8b949e;">${label}</span>
+      <div style="flex:1;background:#21262d;border-radius:3px;height:14px;overflow:hidden;">
+        <div style="background:${barColor};width:${v*100}%;height:100%;border-radius:3px;transition:width 0.5s;"></div>
+      </div>
+      <span style="width:35px;text-align:right;font-size:10px;color:${barColor};">${(v*100).toFixed(0)}%</span>
+    </div>`;
+  };
 
   const resultDiv = document.getElementById('bs-result');
   resultDiv.innerHTML = `
-    <div style="margin-bottom:10px;">
-      <div style="background:#21262d; border-radius:6px; height:24px; overflow:hidden;">
-        <div style="background:${levelColors[idx]}; width:${bs*100}%; height:100%; border-radius:6px; transition:width 0.5s;"></div>
+    <div style="margin-bottom:12px;">
+      <div style="background:#21262d; border-radius:8px; height:32px; overflow:hidden; position:relative;">
+        <div style="background:linear-gradient(90deg, #4cb050 0%, #e5c07b 40%, #e06c75 70%, #ff4444 100%); width:100%; height:100%; opacity:0.2;"></div>
+        <div style="position:absolute;top:0;left:${bs*100}%;transform:translateX(-50%);width:4px;height:100%;background:white;border-radius:2px;"></div>
       </div>
-      <div style="display:flex; justify-content:space-between; margin-top:4px;">
-        <span style="color:${levelColors[idx]}; font-weight:bold; font-size:14px;">${levels[idx]}</span>
-        <span style="color:#8b949e; font-size:12px;">${(bs*100).toFixed(0)}% BS</span>
+      <div style="display:flex; justify-content:space-between; margin-top:6px;">
+        <span style="color:${levelColors[idx]}; font-weight:bold; font-size:16px;">${levelEmoji[idx]} ${levels[idx]}</span>
+        <span style="color:#c9d1d9; font-size:14px; font-weight:bold;">${(bs*100).toFixed(0)}% BS</span>
       </div>
     </div>
-    <div style="font-size:11px; color:#8b949e;">
-      Buzzword density: ${(buzzDensity*100).toFixed(0)}% (${buzzCount} found)<br>
-      Specificity: ${(specificity*100).toFixed(0)}%<br>
-      Commitment: ${(commitment*100).toFixed(0)}%<br>
-      <span style="color:#58a6ff;">Tetravalent: ${bs < 0.3 ? 'T (real content)' : bs < 0.5 ? 'U (substance unclear)' : 'C (contradictory)'}</span>
+
+    <div style="font-size:12px;font-weight:bold;color:white;margin:10px 0 6px;">The 4 Tests</div>
+    ${testBar('Specificity', specificity, false)}
+    ${testBar('Falsifiability', falsifiability, false)}
+    ${testBar('Content Density', contentDensity, false)}
+    ${testBar('Commitment', commitment, false)}
+
+    <div style="font-size:12px;font-weight:bold;color:white;margin:12px 0 6px;">Buzzword Analysis</div>
+    <div style="font-size:11px;color:#8b949e;margin-bottom:4px;">
+      ${totalBuzzCount} buzzwords found (density: ${(buzzDensity*100).toFixed(0)}%)
+      ${topDomain && topDomain[1] > 0 ? `<span style="color:${levelColors[idx]}"> — dominant domain: ${topDomain[0]}</span>` : ''}
+    </div>
+    ${buzzMatches.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
+      ${buzzMatches.slice(0, 12).map(b => `<span style="background:#21262d;border:1px solid #30363d;border-radius:12px;padding:2px 8px;font-size:10px;color:#e06c75;">${b.word}</span>`).join('')}
+      ${buzzMatches.length > 12 ? `<span style="font-size:10px;color:#8b949e;">+${buzzMatches.length-12} more</span>` : ''}
+    </div>` : ''}
+
+    ${devicesFound.length > 0 ? `
+    <div style="font-size:12px;font-weight:bold;color:white;margin:10px 0 6px;">Rhetorical Devices Found</div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;">
+      ${devicesFound.map(d => `<span style="background:#21262d;border:1px solid #e5c07b;border-radius:12px;padding:2px 8px;font-size:10px;color:#e5c07b;">${d}</span>`).join('')}
+    </div>` : ''}
+
+    <div style="font-size:12px;font-weight:bold;color:white;margin:10px 0 6px;">Tetravalent Assessment</div>
+    <div style="display:flex;gap:10px;margin-bottom:6px;">
+      <div style="flex:1;text-align:center;padding:6px;background:#21262d;border-radius:6px;">
+        <div style="font-size:18px;font-weight:bold;color:#4cb050;">T ${tetra.T}%</div>
+        <div style="font-size:9px;color:#8b949e;">True</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:6px;background:#21262d;border-radius:6px;">
+        <div style="font-size:18px;font-weight:bold;color:#e06c75;">F ${tetra.F}%</div>
+        <div style="font-size:9px;color:#8b949e;">False</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:6px;background:#21262d;border-radius:6px;">
+        <div style="font-size:18px;font-weight:bold;color:#e5c07b;">U ${tetra.U}%</div>
+        <div style="font-size:9px;color:#8b949e;">Unknown</div>
+      </div>
+      <div style="flex:1;text-align:center;padding:6px;background:#21262d;border-radius:6px;">
+        <div style="font-size:18px;font-weight:bold;color:#c678dd;">C ${tetra.C}%</div>
+        <div style="font-size:9px;color:#8b949e;">Contradictory</div>
+      </div>
+    </div>
+
+    <div style="font-size:10px;color:#58a6ff;margin-top:8px;">
+      ${bs >= 0.5 ? 'Antidote: Replace buzzwords with specifics — who does what by when, with what evidence.' : 'Content has substance. Could still improve with more specific commitments.'}
     </div>
   `;
 }
 
-// Run BS detector on load with default text
+// Example texts for quick testing
+const examples = {
+  'bs-consulting': "Our analysis suggests significant opportunity exists across the operating model, which implies a phased approach is warranted. Based on our proprietary framework and extensive benchmarking, the organization should embark on a transformation journey across four horizons.",
+  'bs-ai': "Our proprietary next-generation AI platform leverages multimodal foundation models to enable unprecedented insights and autonomous decision-making at scale, democratizing intelligence across the enterprise with production-ready agentic workflows.",
+  'bs-startup': "We're the Uber for enterprise knowledge management. Our TAM is massive and growing. We've achieved product-market fit with exponential growth and strong unit economics. We're reimagining how organizations learn, and we're just getting started.",
+  'bs-hr': "We're building a culture of radical candor and psychological safety where everyone brings their whole-self to work. Our people are our greatest asset. We offer unlimited PTO because we believe in work-life balance.",
+  'clear-eng': "We reduced API latency from 200ms to 45ms by adding a Redis cache for the top 100 queries. Deployed March 15. Cache hit rate: 87%. Cost: $12/month for the Redis instance.",
+  'clear-pm': "12 users signed up this week. 3 churned. MRR is $2,400. The checkout flow has a 23% drop-off at the payment step. We're shipping a Stripe integration by Friday to fix it.",
+};
+
+// Add example buttons
+const bsDetectorDiv = document.getElementById('bs-detector');
+const exampleDiv = document.createElement('div');
+exampleDiv.style.cssText = 'margin-top:10px;display:flex;flex-wrap:wrap;gap:5px;';
+exampleDiv.innerHTML = '<span style="font-size:10px;color:#8b949e;width:100%;margin-bottom:2px;">Try examples:</span>' +
+  Object.entries(examples).map(([key, val]) => {
+    const label = key.replace('bs-','').replace('clear-','Clear: ');
+    const isBS = key.startsWith('bs-');
+    return `<button onclick="document.getElementById('bs-input').value=examples['${key}'];analyzeBs()" style="background:${isBS ? '#21262d' : '#0d2818'};color:${isBS ? '#e06c75' : '#4cb050'};border:1px solid ${isBS ? '#30363d' : '#238636'};padding:4px 10px;border-radius:12px;cursor:pointer;font-size:10px;">${label}</button>`;
+  }).join('');
+bsDetectorDiv.insertBefore(exampleDiv, document.getElementById('bs-result'));
+
+// Run on load
 analyzeBs();
 </script>
 </body>
