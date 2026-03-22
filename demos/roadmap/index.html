@@ -21,29 +21,29 @@
     .tooltip .tt-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
     .tooltip .tt-status { font-size: 11px; font-style: italic; margin-bottom: 6px; }
     .tooltip .tt-desc { color: #8b949e; font-size: 12px; line-height: 1.4; }
-    .tooltip .tt-link { color: #58a6ff; font-size: 11px; margin-top: 6px; display: block; }
-
-    #controls {
-      position: absolute; top: 16px; right: 16px; z-index: 50;
-      display: flex; gap: 8px;
-    }
-    #controls button {
-      background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
-      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
-      transition: all 0.15s;
-    }
-    #controls button:hover { background: #30363d; }
+    .tooltip .tt-action { color: #58a6ff; font-size: 11px; margin-top: 6px; display: block; }
 
     #header { position: absolute; top: 16px; left: 16px; z-index: 50; pointer-events: none; }
     #header h1 { font-size: 20px; font-weight: 600; }
     #header p { font-size: 12px; color: #8b949e; margin-top: 2px; }
 
-    #focus-label {
-      position: absolute; top: 52px; left: 16px; z-index: 50;
-      font-size: 14px; font-weight: 600; display: none;
+    #breadcrumb {
+      position: absolute; top: 52px; left: 16px; z-index: 50; font-size: 13px;
     }
-    #focus-label span.dismiss { cursor: pointer; color: #8b949e; font-weight: 400; font-size: 12px; margin-left: 8px; }
-    #focus-label span.dismiss:hover { color: #c9d1d9; }
+    #breadcrumb span { cursor: pointer; color: #58a6ff; }
+    #breadcrumb span:hover { text-decoration: underline; }
+    #breadcrumb .sep { color: #484f58; cursor: default; }
+    #breadcrumb .current { color: #e6edf3; cursor: default; font-weight: 600; }
+    #breadcrumb .current:hover { text-decoration: none; }
+
+    #controls {
+      position: absolute; top: 16px; right: 16px; z-index: 50; display: flex; gap: 8px;
+    }
+    #controls button {
+      background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
+      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+    }
+    #controls button:hover { background: #30363d; }
 
     #legend {
       position: absolute; bottom: 16px; left: 16px; z-index: 50;
@@ -53,33 +53,28 @@
     .legend-item { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
     .legend-swatch { width: 10px; height: 10px; border-radius: 2px; }
 
+    #instructions {
+      position: absolute; bottom: 16px; right: 16px; z-index: 50;
+      background: #161b22cc; border: 1px solid #30363d; border-radius: 8px;
+      padding: 10px 14px; font-size: 11px; color: #8b949e; backdrop-filter: blur(4px); line-height: 1.6;
+    }
+
     #stats {
       position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
       z-index: 50; font-size: 11px; color: #58a6ff; white-space: nowrap;
     }
-
-    #instructions {
-      position: absolute; bottom: 16px; right: 16px; z-index: 50;
-      background: #161b22cc; border: 1px solid #30363d; border-radius: 8px;
-      padding: 10px 14px; font-size: 11px; color: #8b949e; backdrop-filter: blur(4px);
-    }
-
-    .node { cursor: pointer; }
-    .node text { pointer-events: none; }
   </style>
 </head>
 <body>
   <div id="container">
     <div id="header">
       <h1>GuitarAlchemist Ecosystem Roadmap</h1>
-      <p>Poincar&eacute; Ball &mdash; center = core, edge = horizon. Scroll to zoom, drag to pan, click nodes to focus.</p>
+      <p>Poincar&eacute; Ball — click a ring to plunge deeper, click center to surface</p>
     </div>
-    <div id="focus-label"></div>
+    <div id="breadcrumb"></div>
 
     <div id="controls">
-      <button onclick="resetView()">Reset View</button>
-      <button onclick="clearFocus()">Clear Focus</button>
-      <button onclick="toggleLabels()">Toggle Labels</button>
+      <button onclick="plungeTo(tree)">Home</button>
     </div>
 
     <div class="tooltip" id="tooltip"></div>
@@ -99,317 +94,417 @@
     </div>
 
     <div id="instructions">
-      Scroll = zoom &bull; Drag = pan<br>
-      Click core node = focus<br>
-      Click node = open GitHub<br>
-      Center = core, edge = infinite
+      Click ring 1 node → plunge in<br>
+      Click center → surface up<br>
+      Leaf nodes → open GitHub<br>
+      Always see 3 levels
     </div>
   </div>
 
 <script>
-const C = {
-  core: '#f0883e', gov: '#4cb050', music: '#7289da',
-  sci: '#e06c75', human: '#c678dd', infra: '#56b6c2', meta: '#e5c07b',
+const C = { core: '#f0883e', gov: '#4cb050', music: '#7289da', sci: '#e06c75', human: '#c678dd', infra: '#56b6c2', meta: '#e5c07b', dim: '#8b949e' };
+
+// --- DEEP HIERARCHICAL DATA ---
+const tree = {
+  name: 'GuitarAlchemist', color: C.core, desc: 'AI-native tools for music, ML, and agent governance.', url: 'https://github.com/GuitarAlchemist',
+  children: [
+    { name: 'Constitution', color: C.gov, sub: '11 Articles', desc: 'Asimov Laws (0-5) + operational ethics (1-11).', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/default.constitution.md', children: [
+      { name: 'Asimov Laws', color: C.gov, sub: 'Art 0-5', desc: 'Zeroth Law, Three Laws, separation, invariance.', children: [
+        { name: 'Zeroth Law', color: C.gov, desc: 'Protect humanity and ecosystem.' },
+        { name: 'First Law', color: C.gov, desc: 'Protect individual humans.' },
+        { name: 'Second Law', color: C.gov, desc: 'Obey human authority.' },
+        { name: 'Third Law', color: C.gov, desc: 'Self-preservation (lowest).' },
+      ]},
+      { name: 'Operational Ethics', color: C.gov, sub: 'Art 1-11', desc: 'Truthfulness, transparency, reversibility...', children: [
+        { name: 'Truthfulness', color: C.gov, desc: 'Do not fabricate.' },
+        { name: 'Transparency', color: C.gov, desc: 'Explain reasoning.' },
+        { name: 'Reversibility', color: C.gov, desc: 'Prefer reversible actions.' },
+        { name: 'Proportionality', color: C.gov, desc: 'Match scope to request.' },
+        { name: 'Escalation', color: C.gov, desc: 'Escalate when uncertain.' },
+        { name: 'Auditability', color: C.gov, desc: 'Maintain logs and traces.' },
+        { name: 'Bounded Autonomy', color: C.gov, desc: 'Operate within bounds.' },
+      ]},
+      { name: 'Fuzzy Enum/DU', color: C.gov, sub: 'SPEC', desc: 'FuzzyEnum<T>, FuzzyDU<T,P>, FuzzyBuilder CE.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/docs/superpowers/specs/2026-03-22-fuzzy-enum-du-design.md' },
+      { name: 'BS Detector', color: C.gov, sub: 'v2', desc: '10-domain grammar + decoder pipeline.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/gov-bs-generators.ebnf' },
+      { name: 'Staleness', color: C.gov, sub: 'POLICY', desc: 'Per-category freshness thresholds.' },
+      { name: 'Blind Spots', color: C.gov, sub: 'GRAMMAR', desc: 'Coverage, cognitive, meta blind spots.' },
+      { name: 'Alignment', color: C.gov, desc: '≥0.9 proceed, ≥0.7 note, ≥0.5 confirm, <0.3 stop.' },
+    ]},
+    { name: 'Tetravalent', color: C.core, sub: 'T/F/U/C', desc: 'Four-valued logic: True, False, Unknown, Contradictory.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/logic', children: [
+      { name: 'Fuzzy Ops', color: C.core, desc: 'AND, OR, NOT, renormalize, sharpen.' },
+      { name: 'Propagation', color: C.core, desc: 'Multiplicative, Zadeh, Bayesian, Custom.' },
+      { name: 'K-Theory', color: C.dim, sub: 'HORIZON', desc: 'Grothendieck bundles. Future work.' },
+    ]},
+    { name: 'Streeling Univ.', color: C.music, sub: '14 Depts', desc: '14 departments. Research cycles produce courses.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling', children: [
+      { name: 'Music', color: C.music, desc: 'Scales, chords, progressions, keys.', children: [
+        { name: 'MUS-001', color: C.music, desc: 'What Is a Chord — beginner.' },
+      ]},
+      { name: 'Guitar Studies', color: C.music, desc: 'Fretboard, CAGED, technique.', children: [
+        { name: 'GTR-001', color: C.music, desc: 'The Fretboard Map.' },
+        { name: 'GTR-002', color: C.music, desc: 'CAGED Geometry — research-produced.' },
+        { name: 'Satriani Grammar', color: C.music, sub: 'ADVANCED', desc: 'Legato, tapping, whammy.' },
+      ]},
+      { name: 'Audio Eng.', color: C.sci, sub: 'NEW', desc: 'Recording, mixing, mastering. Metabuild-bootstrapped.', children: [
+        { name: 'AUD-001', color: C.sci, desc: 'EQ/Compression Order — research-produced.' },
+      ]},
+      { name: 'Musicology', color: C.music, desc: 'How Music Evolves — cultural analysis.' },
+      { name: 'Physics', color: C.sci, desc: 'Acoustics, vibration, modeling.' },
+      { name: 'Mathematics', color: C.sci, desc: 'Proofs, algebra, topology.' },
+      { name: 'Comp. Science', color: C.sci, desc: 'Algorithms, ML, DSP.' },
+      { name: 'Philosophy', color: C.human, desc: 'Ethics, dialectic, epistemology.' },
+      { name: 'Cog. Science', color: C.human, desc: 'Biases, heuristics, decision making.' },
+      { name: 'Futurology', color: C.human, desc: 'Signals, scenarios, horizons.' },
+      { name: 'Psychohistory', color: C.human, desc: 'Statistical prediction, crises.' },
+      { name: 'Academy', color: C.music, desc: 'Beginner onboarding.' },
+      { name: 'World Music', color: C.music, desc: '10 traditions, 6 languages.' },
+      { name: 'Product Mgmt', color: C.infra, desc: 'Shipping vs talking.' },
+      { name: 'Research Cycle', color: C.music, sub: '2 DONE', desc: 'CAGED + EQ/compression validated.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/research-cycles' },
+      { name: '80 Courses', color: '#58a6ff', sub: '6 LANGS', desc: '15 EN + 65 translations.' },
+    ]},
+    { name: 'Driver', color: C.infra, sub: '8-Phase', desc: 'WAKE→RECON→PLAN→EXECUTE→VERIFY→COMPOUND→PERSIST→SLEEP.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-drive/SKILL.md', children: [
+      { name: 'RECON', color: C.infra, desc: 'Three-tier reconnaissance across repos.', children: [
+        { name: 'Tier 1: Self', color: C.infra, desc: 'Schema validation, test coverage.' },
+        { name: 'Tier 2: Repos', color: C.infra, desc: 'Repo state, CI, submodules.' },
+        { name: 'Tier 3: Knowledge', color: C.infra, desc: 'Assumptions, confidence gaps.' },
+        { name: 'Link Verify', color: C.infra, desc: 'README link verification.' },
+      ]},
+      { name: 'COMPOUND', color: C.infra, desc: 'Meta-compounding + README sync.', children: [
+        { name: 'Evolve', color: C.infra, desc: 'Promote/demote governance artifacts.' },
+        { name: 'README Sync', color: C.infra, desc: 'Auto-sync artifact counts.' },
+        { name: 'Knowledge', color: C.infra, desc: 'Package via /seldon deliver.' },
+      ]},
+      { name: 'Discord Bot', color: C.infra, sub: 'LIVE', desc: 'Node.js bot (discord.js + Anthropic).', url: 'https://github.com/GuitarAlchemist/demerzel-bot' },
+      { name: 'Reports', color: C.infra, sub: 'SKILL', desc: '/demerzel report — 6 sections, 3 formats.' },
+      { name: 'GitHub Pages', color: '#58a6ff', sub: '6 VIZ', desc: 'Interactive D3.js visualizations.', url: 'https://guitaralchemist.github.io' },
+    ]},
+    { name: 'Meta-Grammar', color: C.meta, sub: '19 Living', desc: '19 EBNF grammars. Living evolution policy.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/grammars', children: [
+      { name: 'MetaBuild', color: C.meta, sub: 'FACTORY', desc: 'Factory of factories — one command, full department.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metabuild/SKILL.md', children: [
+        { name: 'Dept Factory', color: C.meta, desc: 'Grammar + dept + weights + tests.' },
+        { name: 'Skill Factory', color: C.meta, desc: 'Skill + schema + tests.' },
+        { name: 'Grammar Factory', color: C.meta, desc: 'Grammar + evolution hooks.' },
+        { name: 'Pipeline Factory', color: C.meta, desc: 'MOG pipeline + skill.' },
+        { name: 'Repo Factory', color: C.meta, desc: 'GitHub repo + governance.' },
+      ]},
+      { name: 'MetaFix', color: C.meta, sub: '5 LEVELS', desc: 'Instance → batch → detect → prevent → system.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metafix/SKILL.md' },
+      { name: 'MOG', color: C.sci, sub: '42 TASKS', desc: 'MCP Orchestration Grammar.' },
+      { name: 'Grammar Prefixes', color: C.meta, desc: 'core (3), music (4), sci (5), gov (3), human (4).', children: [
+        { name: 'core- (3)', color: C.core, desc: 'meta-grammar, scientific-method, state-machines.' },
+        { name: 'music- (4)', color: C.music, desc: 'theory, guitar-technique, musicology, satriani.' },
+        { name: 'sci- (5)', color: C.sci, desc: 'acoustics, algorithms, math-proof, ml-pipelines, audio-eng.' },
+        { name: 'gov- (3)', color: C.gov, desc: 'blind-spot, bs-generators, product-mgmt.' },
+        { name: 'human- (4)', color: C.human, desc: 'cog-sci, futurology, philosophy, psychohistory.' },
+      ]},
+      { name: 'External', color: C.dim, sub: '15 REFS', desc: 'External grammars for distillation.' },
+    ]},
+    { name: 'Conscience', color: C.gov, sub: 'Maturing', desc: 'Signals, regrets, patterns. Nascent → maturing.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/conscience', children: [
+      { name: 'Signals', color: C.gov, sub: '5 FIRED', desc: '4 fully resolved, 1 substantially addressed.', children: [
+        { name: 'Harm Proximity', color: C.gov, desc: 'ga ungoverned agents — resolved.' },
+        { name: 'Silence', color: C.gov, desc: 'No consumer beliefs — addressed.' },
+        { name: 'Stale Action ×2', color: C.gov, desc: 'Stale submodules, stale articles — resolved.' },
+        { name: 'Remediation', color: C.gov, desc: 'In-flight remediation — resolved.' },
+      ]},
+      { name: 'Beliefs', color: C.gov, sub: '3 ACTIVE', desc: 'Integrity 0.98, tests 0.80, integration 0.90.', children: [
+        { name: 'Integrity', color: C.gov, sub: 'T 0.98', desc: 'Framework structurally complete.' },
+        { name: 'Test Coverage', color: C.gov, sub: 'T 0.80', desc: 'Core personas tested. Expanded set pending.' },
+        { name: 'Integration', color: C.gov, sub: 'T 0.90', desc: 'All 3 repos governed on main.' },
+        { name: '4 Archived', color: C.dim, desc: 'Superseded 2026-03-17 beliefs.' },
+      ]},
+      { name: 'Patterns', color: C.human, sub: '5 FOUND', desc: '4 anti-patterns + 1 positive.' },
+      { name: 'Cont. Learning', color: C.human, sub: 'POLICY', desc: 'Observe → extract → promote.' },
+      { name: 'ML Pipelines', color: C.sci, sub: 'ix', desc: 'Rust — 83 tests.', url: 'https://github.com/GuitarAlchemist/ix' },
+      { name: 'tars MCP', color: C.sci, sub: '151 TOOLS', desc: 'F# reasoning engine.', url: 'https://github.com/GuitarAlchemist/tars' },
+      { name: 'Context Budget', color: C.human, sub: 'ECC', desc: 'Token overhead audit.' },
+    ]},
+  ]
 };
 
-// Parent mapping: which ring-1 node "owns" each ring-2/3 node
-const parentMap = {
-  fuzzy: 'constitution', bsdetector: 'constitution', staleness: 'constitution', blindspot: 'constitution',
-  courses: 'streeling', satriani: 'streeling', researchcycle: 'streeling', translations: 'streeling', notebooklm: 'streeling',
-  discord: 'driver', readmesync: 'driver', dashboard: 'driver', discordch: 'driver',
-  metafix: 'metagrammar', metabuild: 'metagrammar', mog: 'metagrammar', extgrammars: 'metagrammar', grammars: 'metagrammar',
-  contlearning: 'conscience', patterns: 'conscience', contextbudget: 'conscience', mlpipelines: 'conscience', tarsmcp: 'conscience',
-  ktheory: 'tetravalent',
-  ghpages: 'driver', sympy: 'streeling', gamcp: 'streeling', hookprofiles: 'driver', boardviews: 'driver',
-};
-
-const nodes = [
-  // Center
-  { id: 'demerzel', label: 'Demerzel', sublabel: 'Governance', r: 0, theta: 0, ring: 0,
-    color: C.core, size: 28, desc: 'AI governance framework — constitutions, personas, tetravalent logic, alignment.', url: 'https://github.com/GuitarAlchemist/Demerzel' },
-
-  // Ring 1
-  { id: 'constitution', label: 'Constitution', sublabel: '11 Articles', r: 0.28, theta: 0, ring: 1, color: C.gov, size: 18, desc: 'Truthfulness, transparency, reversibility, proportionality, escalation, auditability, observability, bounded autonomy, stakeholder pluralism, ethical stewardship.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/default.constitution.md' },
-  { id: 'tetravalent', label: 'Tetravalent', sublabel: 'T/F/U/C', r: 0.28, theta: Math.PI/3, ring: 1, color: C.core, size: 18, desc: 'Four-valued logic: True, False, Unknown, Contradictory.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/logic' },
-  { id: 'streeling', label: 'Streeling', sublabel: '14 Depts', r: 0.28, theta: 2*Math.PI/3, ring: 1, color: C.music, size: 18, desc: '14 departments. Research cycles → courses via grammar-weighted scientific method.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling' },
-  { id: 'driver', label: 'Driver', sublabel: '8-Phase', r: 0.28, theta: Math.PI, ring: 1, color: C.infra, size: 18, desc: 'WAKE → RECON → PLAN → EXECUTE → VERIFY → COMPOUND → PERSIST → SLEEP.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-drive/SKILL.md' },
-  { id: 'metagrammar', label: 'Meta-Grammar', sublabel: '19 Living', r: 0.28, theta: 4*Math.PI/3, ring: 1, color: C.meta, size: 18, desc: '19 EBNF grammars with evolution policy. core/music/sci/gov/human prefixed.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/grammars' },
-  { id: 'conscience', label: 'Conscience', sublabel: 'Maturing', r: 0.28, theta: 5*Math.PI/3, ring: 1, color: C.gov, size: 18, desc: 'Signals, regrets, patterns. 5 fired, 4 resolved. Nascent → maturing.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/conscience' },
-
-  // Ring 2
-  { id: 'fuzzy', label: 'Fuzzy Enum/DU', sublabel: 'SPEC', r: 0.56, theta: -0.18, ring: 2, color: C.gov, size: 12, desc: 'FuzzyEnum<T>, FuzzyDU<T,P>, FuzzyBuilder CE. Unifies 7 systems.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/docs/superpowers/specs/2026-03-22-fuzzy-enum-du-design.md' },
-  { id: 'bsdetector', label: 'BS Detector', sublabel: 'v2', r: 0.56, theta: 0.18, ring: 2, color: C.gov, size: 12, desc: '10-domain BS grammar + decoder pipeline.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/gov-bs-generators.ebnf' },
-  { id: 'staleness', label: 'Staleness', sublabel: 'POLICY', r: 0.58, theta: 0.5, ring: 2, color: C.gov, size: 11, desc: 'Per-category freshness thresholds.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/staleness-detection-policy.yaml' },
-  { id: 'blindspot', label: 'Blind Spots', sublabel: 'GRAMMAR', r: 0.58, theta: -0.5, ring: 2, color: C.gov, size: 11, desc: 'Staleness, coverage, cognitive, meta blind spots.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/gov-blind-spot-detection.ebnf' },
-
-  { id: 'ktheory', label: 'K-Theory', sublabel: 'HORIZON', r: 0.56, theta: Math.PI/3 + 0.15, ring: 2, color: '#8b949e', size: 10, desc: 'Grothendieck K-theory for governance bundles. Future.' },
-
-  { id: 'courses', label: '80 Courses', sublabel: '6 Langs', r: 0.56, theta: 2*Math.PI/3 - 0.2, ring: 2, color: C.music, size: 12, desc: '15 EN + 65 translations (ES/PT/FR/IT/DE).', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/courses' },
-  { id: 'satriani', label: 'Satriani', sublabel: 'ADVANCED', r: 0.58, theta: 2*Math.PI/3 + 0.2, ring: 2, color: C.music, size: 11, desc: 'Legato, tapping, whammy, exotic scales.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/music-satriani-advanced.ebnf' },
-  { id: 'researchcycle', label: 'Research Cycle', sublabel: '2 DONE', r: 0.55, theta: 2*Math.PI/3 + 0.5, ring: 2, color: C.music, size: 12, desc: 'CAGED geometry + EQ/compression. Pipeline validated.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/research-cycles' },
-
-  { id: 'discord', label: 'Discord Bot', sublabel: 'LIVE', r: 0.56, theta: Math.PI - 0.25, ring: 2, color: C.infra, size: 12, desc: 'Node.js bot (discord.js + Anthropic SDK).', url: 'https://github.com/GuitarAlchemist/demerzel-bot' },
-  { id: 'readmesync', label: 'README Sync', sublabel: 'DRIVER', r: 0.58, theta: Math.PI + 0.25, ring: 2, color: C.infra, size: 11, desc: 'Auto-sync counts in COMPOUND phase.' },
-  { id: 'dashboard', label: 'Reports', sublabel: 'SKILL', r: 0.56, theta: Math.PI + 0.55, ring: 2, color: C.infra, size: 11, desc: '/demerzel report — 6 sections, 3 formats.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-report/SKILL.md' },
-
-  { id: 'metafix', label: 'MetaFix', sublabel: '5 LEVELS', r: 0.55, theta: 4*Math.PI/3 - 0.25, ring: 2, color: C.meta, size: 12, desc: 'Instance → batch → detect → prevent → system.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metafix/SKILL.md' },
-  { id: 'metabuild', label: 'MetaBuild', sublabel: 'FACTORY', r: 0.55, theta: 4*Math.PI/3 + 0.25, ring: 2, color: C.meta, size: 12, desc: 'Factory of factories — one command, full department.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metabuild/SKILL.md' },
-  { id: 'mog', label: 'MOG', sublabel: '42 TASKS', r: 0.58, theta: 4*Math.PI/3 + 0.55, ring: 2, color: C.sci, size: 11, desc: 'MCP Orchestration Grammar.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/core-meta-grammar.ebnf' },
-  { id: 'grammars', label: '19 Grammars', sublabel: 'LIVING', r: 0.58, theta: 4*Math.PI/3 - 0.55, ring: 2, color: C.core, size: 11, desc: 'Living evolution with Bayesian weight updates.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/grammars' },
-
-  { id: 'contlearning', label: 'Cont. Learning', sublabel: 'POLICY', r: 0.56, theta: 5*Math.PI/3 - 0.3, ring: 2, color: C.human, size: 11, desc: 'Observation → pattern → promotion.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/continuous-learning-policy.yaml' },
-  { id: 'patterns', label: 'Patterns', sublabel: '5 FOUND', r: 0.56, theta: 5*Math.PI/3 + 0.3, ring: 2, color: C.human, size: 11, desc: '4 anti-patterns + 1 positive.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/patterns' },
-  { id: 'contextbudget', label: 'Context Budget', sublabel: 'ECC', r: 0.58, theta: 5*Math.PI/3 + 0.6, ring: 2, color: C.human, size: 10, desc: 'Token overhead audit.' },
-  { id: 'mlpipelines', label: 'ML Pipelines', sublabel: 'ix', r: 0.58, theta: 5*Math.PI/3 - 0.6, ring: 2, color: C.sci, size: 11, desc: 'Rust ML — 83 tests.', url: 'https://github.com/GuitarAlchemist/ix' },
-  { id: 'tarsmcp', label: 'tars MCP', sublabel: '151', r: 0.55, theta: 5*Math.PI/3, ring: 2, color: C.sci, size: 12, desc: 'F# reasoning — 151 tools.', url: 'https://github.com/GuitarAlchemist/tars' },
-
-  // Ring 3 (horizon)
-  { id: 'translations', label: 'Translations', r: 0.86, theta: 2*Math.PI/3 - 0.4, ring: 3, color: '#8b949e', size: 8, desc: '65 translations across 5 languages.' },
-  { id: 'extgrammars', label: 'External Grammars', r: 0.86, theta: 4*Math.PI/3 - 0.8, ring: 3, color: '#8b949e', size: 8, desc: '15 external grammars for distillation.' },
-  { id: 'discordch', label: 'Discord Channels', r: 0.86, theta: Math.PI + 0.8, ring: 3, color: '#8b949e', size: 8, desc: 'Blocked on bot permissions.' },
-  { id: 'notebooklm', label: 'NotebookLM', r: 0.86, theta: 2*Math.PI/3 + 0.7, ring: 3, color: '#8b949e', size: 8, desc: 'Expand to 10 notebooks.' },
-  { id: 'ghpages', label: 'GitHub Pages', sublabel: '6 VIZ', r: 0.86, theta: Math.PI - 0.6, ring: 3, color: '#58a6ff', size: 8, desc: 'This! Interactive D3.js visualizations.', url: 'https://guitaralchemist.github.io' },
-  { id: 'sympy', label: 'SymPy MCP', r: 0.88, theta: 2*Math.PI/3 + 1.0, ring: 3, color: '#8b949e', size: 7, desc: 'Symbolic math for research.' },
-  { id: 'gamcp', label: 'GA MCP', r: 0.88, theta: 2*Math.PI/3 + 0.4, ring: 3, color: '#8b949e', size: 7, desc: 'Connect chatbot to live MCP.' },
-  { id: 'hookprofiles', label: 'Hook Profiles', r: 0.88, theta: Math.PI + 0.1, ring: 3, color: '#8b949e', size: 7, desc: 'Work mode hook profiles.' },
-  { id: 'boardviews', label: 'Board Views', r: 0.88, theta: Math.PI - 0.1, ring: 3, color: '#8b949e', size: 7, desc: 'Board, By Repo, By Priority.', url: 'https://github.com/orgs/GuitarAlchemist/projects/2' },
-];
+// Assign parent refs
+function assignParents(node, parent) {
+  node._parent = parent;
+  if (node.children) node.children.forEach(c => assignParents(c, node));
+}
+assignParents(tree, null);
 
 // --- RENDERING ---
 const W = window.innerWidth, H = window.innerHeight;
-const R = Math.min(W, H) * 0.42;
+const R = Math.min(W, H) * 0.40;
 const cx = W / 2, cy = H / 2;
 
 const svg = d3.select('#container').append('svg').attr('width', W).attr('height', H);
 const defs = svg.append('defs');
 
 // Glow filter
-const glow = defs.append('filter').attr('id', 'glow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
-glow.append('feGaussianBlur').attr('stdDeviation', 4).attr('result', 'blur');
-glow.append('feMerge').selectAll('feMergeNode').data(['blur', 'SourceGraphic']).enter().append('feMergeNode').attr('in', d => d);
+const gl = defs.append('filter').attr('id', 'glow').attr('x', '-50%').attr('y', '-50%').attr('width', '200%').attr('height', '200%');
+gl.append('feGaussianBlur').attr('stdDeviation', 4).attr('result', 'b');
+gl.append('feMerge').selectAll('feMergeNode').data(['b','SourceGraphic']).enter().append('feMergeNode').attr('in', d=>d);
 
-// 3D sphere gradient
-const sGrad = defs.append('radialGradient').attr('id', 'sphere').attr('cx', '38%').attr('cy', '35%').attr('r', '62%');
-sGrad.append('stop').attr('offset', '0%').attr('stop-color', '#1e2a3a').attr('stop-opacity', 0.25);
-sGrad.append('stop').attr('offset', '55%').attr('stop-color', '#111820').attr('stop-opacity', 0.15);
-sGrad.append('stop').attr('offset', '85%').attr('stop-color', '#080c12').attr('stop-opacity', 0.55);
-sGrad.append('stop').attr('offset', '100%').attr('stop-color', '#000').attr('stop-opacity', 0.85);
+// 3D sphere gradients
+const sg = defs.append('radialGradient').attr('id','sph').attr('cx','38%').attr('cy','35%').attr('r','62%');
+sg.append('stop').attr('offset','0%').attr('stop-color','#1e2a3a').attr('stop-opacity',0.2);
+sg.append('stop').attr('offset','55%').attr('stop-color','#111820').attr('stop-opacity',0.12);
+sg.append('stop').attr('offset','85%').attr('stop-color','#080c12').attr('stop-opacity',0.5);
+sg.append('stop').attr('offset','100%').attr('stop-color','#000').attr('stop-opacity',0.85);
 
-// Specular
-const spGrad = defs.append('radialGradient').attr('id', 'spec').attr('cx', '32%').attr('cy', '30%').attr('r', '35%');
-spGrad.append('stop').attr('offset', '0%').attr('stop-color', '#b0c4de').attr('stop-opacity', 0.06);
-spGrad.append('stop').attr('offset', '100%').attr('stop-color', '#b0c4de').attr('stop-opacity', 0);
+const sp = defs.append('radialGradient').attr('id','spec').attr('cx','32%').attr('cy','30%').attr('r','35%');
+sp.append('stop').attr('offset','0%').attr('stop-color','#b0c4de').attr('stop-opacity',0.05);
+sp.append('stop').attr('offset','100%').attr('stop-color','#b0c4de').attr('stop-opacity',0);
 
 const mainG = svg.append('g');
-
-// Zoom
-const zoom = d3.zoom().scaleExtent([0.5, 10]).on('zoom', e => mainG.attr('transform', e.transform));
-svg.call(zoom);
-
-// --- 3D SPHERE BACKGROUND ---
 const sphereG = mainG.append('g').attr('pointer-events', 'none');
-
-// Latitude lines (full ellipses with perspective)
-for (let i = 1; i <= 7; i++) {
-  const lat = i / 8;
-  const rr = R * lat;
-  const squeeze = 1 - lat * lat * 0.25;
-  sphereG.append('ellipse')
-    .attr('cx', cx).attr('cy', cy).attr('rx', rr).attr('ry', rr * squeeze)
-    .attr('fill', 'none').attr('stroke', '#1c2333').attr('stroke-width', 0.5)
-    .attr('stroke-dasharray', '2,4').attr('opacity', 0.5 - i*0.05);
-}
-
-// Longitude arcs (rotated ellipses for 3D depth)
-for (let i = 0; i < 12; i++) {
-  const a = (i / 12) * Math.PI;
-  sphereG.append('ellipse')
-    .attr('cx', cx).attr('cy', cy).attr('rx', R).attr('ry', R * 0.35)
-    .attr('fill', 'none').attr('stroke', '#1c2333').attr('stroke-width', 0.4)
-    .attr('stroke-dasharray', '2,5').attr('opacity', 0.2)
-    .attr('transform', `rotate(${a * 180 / Math.PI} ${cx} ${cy})`);
-}
-
-// 3D gradient overlay
-sphereG.append('circle').attr('cx', cx).attr('cy', cy).attr('r', R * 1.01).attr('fill', 'url(#sphere)');
-sphereG.append('circle').attr('cx', cx).attr('cy', cy).attr('r', R).attr('fill', 'url(#spec)');
-
-// Boundary
-sphereG.append('circle').attr('cx', cx).attr('cy', cy).attr('r', R)
-  .attr('fill', 'none').attr('stroke', '#30363d').attr('stroke-width', 1.5);
-
-// Depth guide circles
-[0.28, 0.56, 0.86].forEach(r => {
-  sphereG.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r * R)
-    .attr('fill', 'none').attr('stroke', '#21262d').attr('stroke-width', 0.5).attr('stroke-dasharray', '4,6');
-});
-
-// --- EDGES ---
 const edgeG = mainG.append('g').attr('pointer-events', 'none');
+const nodeG = mainG.append('g');
 
-function toXY(r, theta) { return [cx + r * R * Math.cos(theta), cy + r * R * Math.sin(theta)]; }
+// --- DRAW SPHERE (static background) ---
+function drawSphere() {
+  sphereG.selectAll('*').remove();
+  // Latitude
+  for (let i = 1; i <= 7; i++) {
+    const f = i/8, rr = R*f, sq = 1 - f*f*0.22;
+    sphereG.append('ellipse').attr('cx',cx).attr('cy',cy).attr('rx',rr).attr('ry',rr*sq)
+      .attr('fill','none').attr('stroke','#1c2333').attr('stroke-width',0.4).attr('stroke-dasharray','2,4').attr('opacity',0.4-i*0.04);
+  }
+  // Longitude
+  for (let i = 0; i < 12; i++) {
+    const a = (i/12)*180;
+    sphereG.append('ellipse').attr('cx',cx).attr('cy',cy).attr('rx',R).attr('ry',R*0.32)
+      .attr('fill','none').attr('stroke','#1c2333').attr('stroke-width',0.35).attr('stroke-dasharray','2,5').attr('opacity',0.18)
+      .attr('transform',`rotate(${a} ${cx} ${cy})`);
+  }
+  // Depth rings
+  [0.28, 0.58, 0.86].forEach(f => {
+    sphereG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',f*R)
+      .attr('fill','none').attr('stroke','#21262d').attr('stroke-width',0.6).attr('stroke-dasharray','3,5');
+  });
+  // 3D overlays
+  sphereG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',R*1.01).attr('fill','url(#sph)');
+  sphereG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',R).attr('fill','url(#spec)');
+  sphereG.append('circle').attr('cx',cx).attr('cy',cy).attr('r',R).attr('fill','none').attr('stroke','#30363d').attr('stroke-width',1.5);
+}
+drawSphere();
 
-// Center → ring 1
-nodes.filter(n => n.ring === 1).forEach(n => {
-  const [x2, y2] = toXY(n.r, n.theta);
-  edgeG.append('line').attr('class', 'edge-line').attr('data-parent', n.id)
-    .attr('x1', cx).attr('y1', cy).attr('x2', x2).attr('y2', y2)
-    .attr('stroke', n.color).attr('stroke-opacity', 0.2).attr('stroke-width', 1.5);
-});
+// --- LAYOUT ENGINE ---
+// Given a focus node, compute 3 rings:
+//   ring 0: focus itself (center)
+//   ring 1: focus.children (spread around)
+//   ring 2: focus.children[*].children (spread around parents)
+function computeLayout(focus) {
+  const items = [];
+  // Center
+  items.push({ node: focus, ring: 0, r: 0, theta: 0, size: 26 });
 
-// Ring 1 → ring 2/3
-nodes.filter(n => n.ring >= 2 && parentMap[n.id]).forEach(n => {
-  const parent = nodes.find(p => p.id === parentMap[n.id]);
-  if (!parent) return;
-  const [x1, y1] = toXY(parent.r, parent.theta);
-  const [x2, y2] = toXY(n.r, n.theta);
-  edgeG.append('line').attr('class', 'edge-line').attr('data-parent', parent.id)
-    .attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
-    .attr('stroke', parent.color).attr('stroke-opacity', 0.1).attr('stroke-width', 0.8);
-});
+  const kids = focus.children || [];
+  kids.forEach((child, i) => {
+    const theta = (i / kids.length) * 2 * Math.PI - Math.PI / 2;
+    items.push({ node: child, ring: 1, r: 0.30, theta, size: 16 });
 
-// --- NODES ---
-const tooltip = document.getElementById('tooltip');
-let labelsVisible = true;
-let focusedId = null;
-
-const nodeG = mainG.selectAll('.node').data(nodes).enter().append('g')
-  .attr('class', 'node')
-  .attr('transform', d => { const [x, y] = toXY(d.r, d.theta); return `translate(${x},${y})`; });
-
-// Glow halos
-nodeG.filter(d => d.ring <= 1).append('circle')
-  .attr('class', 'halo')
-  .attr('r', d => d.ring === 0 ? 24 : 14)
-  .attr('fill', d => d.color).attr('opacity', d => d.ring === 0 ? 0.12 : 0.06)
-  .attr('filter', 'url(#glow)');
-
-// Main circles
-nodeG.append('circle').attr('class', 'main-dot')
-  .attr('r', d => d.size / 2)
-  .attr('fill', d => d.color || '#8b949e')
-  .attr('opacity', d => d.ring === 3 ? 0.5 : d.ring === 2 ? 0.85 : 1)
-  .attr('stroke', d => d.ring === 0 ? '#fff' : 'none')
-  .attr('stroke-width', d => d.ring === 0 ? 2 : 0);
-
-// Pulse on center
-const pulse = nodeG.filter(d => d.ring === 0).append('circle')
-  .attr('r', 14).attr('fill', 'none').attr('stroke', C.core).attr('stroke-width', 1).attr('opacity', 0);
-(function animPulse() {
-  pulse.attr('r', 14).attr('opacity', 0.4)
-    .transition().duration(2500).ease(d3.easeCubicOut)
-    .attr('r', 32).attr('opacity', 0)
-    .on('end', animPulse);
-})();
-
-// Labels
-nodeG.append('text').attr('class', 'lbl')
-  .attr('dy', d => -(d.size/2 + 5)).attr('text-anchor', 'middle')
-  .attr('fill', d => d.ring >= 3 ? '#8b949e' : '#e6edf3')
-  .attr('font-size', d => [16, 11, 9, 7][d.ring] || 7)
-  .attr('font-weight', d => d.ring <= 1 ? '600' : '400')
-  .attr('opacity', d => d.ring === 3 ? 0.7 : 1)
-  .text(d => d.label);
-
-// Sublabels
-nodeG.filter(d => d.sublabel).append('text').attr('class', 'sublbl')
-  .attr('dy', d => d.size/2 + 12).attr('text-anchor', 'middle')
-  .attr('fill', d => d.color || '#8b949e')
-  .attr('font-size', d => d.ring <= 1 ? 9 : 7).attr('font-style', 'italic')
-  .attr('opacity', d => d.ring === 3 ? 0.6 : 0.85)
-  .text(d => d.sublabel);
-
-// --- FOCUS BEHAVIOR ---
-function focusOn(id) {
-  focusedId = id;
-  const focusNode = nodes.find(n => n.id === id);
-
-  // Dim everything not related
-  nodeG.transition().duration(400)
-    .attr('opacity', d => {
-      if (d.id === id || d.id === 'demerzel') return 1;
-      if (d.ring >= 2 && parentMap[d.id] === id) return 1;
-      return 0.12;
+    const grandkids = child.children || [];
+    grandkids.forEach((gk, j) => {
+      // Spread grandchildren in an arc near their parent
+      const spread = Math.min(0.5, 1.2 / kids.length);
+      const gkTheta = theta + (j - (grandkids.length - 1) / 2) * spread / Math.max(grandkids.length - 1, 1) * 2;
+      // Push grandchildren further out, with slight variation
+      const gkR = 0.58 + (grandkids.length > 5 ? 0.06 : 0) + (j % 2) * 0.04;
+      items.push({ node: gk, ring: 2, r: Math.min(gkR, 0.82), theta: gkTheta, size: 10 });
     });
-
-  edgeG.selectAll('.edge-line').transition().duration(400)
-    .attr('stroke-opacity', function() {
-      const pid = this.getAttribute('data-parent');
-      return (pid === id) ? 0.35 : 0.03;
-    });
-
-  // Show focus label
-  const fl = document.getElementById('focus-label');
-  fl.style.display = 'block';
-  fl.innerHTML = `<span style="color:${focusNode.color}">${focusNode.label}</span> <span class="dismiss" onclick="clearFocus()">✕ clear</span>`;
+  });
+  return items;
 }
 
-function clearFocus() {
-  focusedId = null;
-  nodeG.transition().duration(400).attr('opacity', 1);
-  edgeG.selectAll('.edge-line').transition().duration(400)
-    .attr('stroke-opacity', function() {
-      const pid = this.getAttribute('data-parent');
-      const parent = nodes.find(n => n.id === pid);
-      return parent && parent.ring === 0 ? 0 : 0.1;
-    });
-  // Restore center→ring1 edges
-  edgeG.selectAll('.edge-line').each(function() {
-    const pid = this.getAttribute('data-parent');
-    const parent = nodes.find(n => n.id === pid);
-    if (!parent) return;
-    if (nodes.find(n => n.id === pid && n.ring === 1)) {
-      d3.select(this).transition().duration(400).attr('stroke-opacity', 0.2);
+function toXY(r, theta) {
+  return [cx + r * R * Math.cos(theta), cy + r * R * Math.sin(theta)];
+}
+
+// --- RENDER ---
+let currentFocus = tree;
+const tooltip = document.getElementById('tooltip');
+const DURATION = 600;
+
+function render(focus, animate) {
+  currentFocus = focus;
+  const layout = computeLayout(focus);
+
+  // --- Edges ---
+  const edgeData = [];
+  layout.forEach(item => {
+    if (item.ring === 1) {
+      edgeData.push({ from: layout[0], to: item, color: item.node.color });
+    }
+    if (item.ring === 2) {
+      // Find parent in ring 1
+      const parent = layout.find(l => l.ring === 1 && l.node.children && l.node.children.includes(item.node));
+      if (parent) edgeData.push({ from: parent, to: item, color: parent.node.color });
     }
   });
-  document.getElementById('focus-label').style.display = 'none';
-}
-window.clearFocus = clearFocus;
 
-// --- INTERACTIONS ---
-nodeG.on('click', (event, d) => {
-  event.stopPropagation();
-  if (d.ring === 1) {
-    // Toggle focus
-    if (focusedId === d.id) { clearFocus(); } else { focusOn(d.id); }
-  } else if (d.url) {
-    window.open(d.url, '_blank');
+  const edges = edgeG.selectAll('line').data(edgeData, (d, i) => i);
+  const edgeEnter = edges.enter().append('line');
+  const edgeMerge = edgeEnter.merge(edges);
+
+  if (animate) {
+    edgeMerge.transition().duration(DURATION)
+      .attr('x1', d => toXY(d.from.r, d.from.theta)[0])
+      .attr('y1', d => toXY(d.from.r, d.from.theta)[1])
+      .attr('x2', d => toXY(d.to.r, d.to.theta)[0])
+      .attr('y2', d => toXY(d.to.r, d.to.theta)[1])
+      .attr('stroke', d => d.color).attr('stroke-opacity', d => d.from.ring === 0 ? 0.25 : 0.12).attr('stroke-width', d => d.from.ring === 0 ? 1.5 : 0.8);
+  } else {
+    edgeMerge
+      .attr('x1', d => toXY(d.from.r, d.from.theta)[0])
+      .attr('y1', d => toXY(d.from.r, d.from.theta)[1])
+      .attr('x2', d => toXY(d.to.r, d.to.theta)[0])
+      .attr('y2', d => toXY(d.to.r, d.to.theta)[1])
+      .attr('stroke', d => d.color).attr('stroke-opacity', d => d.from.ring === 0 ? 0.25 : 0.12).attr('stroke-width', d => d.from.ring === 0 ? 1.5 : 0.8);
   }
-});
+  edges.exit().remove();
 
-svg.on('click', () => { if (focusedId) clearFocus(); });
+  // --- Nodes ---
+  const nodeData = layout;
+  const sel = nodeG.selectAll('.node').data(nodeData, d => d.node.name + d.ring);
 
-// Tooltip
-nodeG.on('mouseenter', (event, d) => {
-  const tt = document.getElementById('tooltip');
-  tt.innerHTML = `
-    <div class="tt-title" style="color:${d.color || '#c9d1d9'}">${d.label}</div>
-    ${d.sublabel ? `<div class="tt-status" style="color:${d.color}">${d.sublabel}</div>` : ''}
-    <div class="tt-desc">${d.desc || ''}</div>
-    ${d.ring === 1 ? '<span class="tt-link">Click to focus on this system</span>' : ''}
-    ${d.url && d.ring !== 1 ? '<span class="tt-link">Click to open on GitHub</span>' : ''}
-  `;
-  tt.style.opacity = 1;
-  const rect = document.getElementById('container').getBoundingClientRect();
-  let left = event.clientX - rect.left + 16;
-  let top = event.clientY - rect.top - 10;
-  if (left + 300 > rect.width) left = event.clientX - rect.left - 316;
-  if (top + 150 > rect.height) top = event.clientY - rect.top - 150;
-  tt.style.left = left + 'px'; tt.style.top = top + 'px';
-})
-.on('mouseleave', () => { tooltip.style.opacity = 0; });
+  // EXIT
+  sel.exit().transition().duration(animate ? DURATION/2 : 0).attr('opacity', 0).remove();
 
-// --- CONTROLS ---
-function resetView() { svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity); clearFocus(); }
-window.resetView = resetView;
+  // ENTER
+  const enter = sel.enter().append('g').attr('class', 'node').attr('opacity', 0)
+    .attr('transform', d => { const [x,y] = toXY(d.r, d.theta); return `translate(${x},${y})`; });
 
-function toggleLabels() {
-  labelsVisible = !labelsVisible;
-  mainG.selectAll('.lbl, .sublbl').transition().duration(200).attr('opacity', labelsVisible ? d => d.ring >= 3 ? 0.7 : 1 : 0);
+  // Halo
+  enter.filter(d => d.ring <= 1).append('circle').attr('class', 'halo')
+    .attr('r', d => d.ring === 0 ? 22 : 12)
+    .attr('fill', d => d.node.color).attr('opacity', d => d.ring === 0 ? 0.1 : 0.05)
+    .attr('filter', 'url(#glow)');
+
+  // Main dot
+  enter.append('circle').attr('class', 'dot')
+    .attr('r', d => d.size / 2)
+    .attr('fill', d => d.node.color || C.dim)
+    .attr('stroke', d => d.ring === 0 ? '#fff' : 'none')
+    .attr('stroke-width', d => d.ring === 0 ? 2 : 0)
+    .attr('opacity', d => d.ring === 2 ? 0.75 : 1)
+    .style('cursor', d => {
+      if (d.ring === 0 && d.node._parent) return 'pointer';
+      if (d.ring === 1 && d.node.children) return 'pointer';
+      if (d.node.url) return 'pointer';
+      return 'default';
+    });
+
+  // Label
+  enter.append('text').attr('class', 'lbl')
+    .attr('dy', d => -(d.size / 2 + 5))
+    .attr('text-anchor', 'middle')
+    .attr('fill', d => d.ring === 2 ? '#b0b8c4' : '#e6edf3')
+    .attr('font-size', d => [16, 12, 9][d.ring] || 9)
+    .attr('font-weight', d => d.ring <= 1 ? '600' : '400')
+    .text(d => d.node.name);
+
+  // Sublabel
+  enter.filter(d => d.node.sub).append('text').attr('class', 'sublbl')
+    .attr('dy', d => d.size / 2 + 13)
+    .attr('text-anchor', 'middle')
+    .attr('fill', d => d.node.color || C.dim)
+    .attr('font-size', d => d.ring <= 1 ? 10 : 7)
+    .attr('font-style', 'italic')
+    .attr('opacity', 0.8)
+    .text(d => d.node.sub);
+
+  // Children indicator
+  enter.filter(d => d.node.children && d.ring >= 1).append('text')
+    .attr('dy', d => d.node.sub ? d.size/2 + 24 : d.size/2 + 13)
+    .attr('text-anchor', 'middle')
+    .attr('fill', '#58a6ff').attr('font-size', 8).attr('opacity', 0.7)
+    .text(d => `(${d.node.children.length})`);
+
+  // MERGE (enter + update)
+  const merged = enter.merge(sel);
+
+  if (animate) {
+    merged.transition().duration(DURATION)
+      .attr('opacity', 1)
+      .attr('transform', d => { const [x,y] = toXY(d.r, d.theta); return `translate(${x},${y})`; });
+  } else {
+    merged.attr('opacity', 1)
+      .attr('transform', d => { const [x,y] = toXY(d.r, d.theta); return `translate(${x},${y})`; });
+  }
+
+  // Update dot attributes on merge
+  merged.select('.dot')
+    .attr('r', d => d.size / 2)
+    .attr('fill', d => d.node.color || C.dim)
+    .attr('stroke', d => d.ring === 0 ? '#fff' : 'none')
+    .attr('stroke-width', d => d.ring === 0 ? 2 : 0);
+
+  merged.select('.lbl')
+    .attr('font-size', d => [16, 12, 9][d.ring] || 9)
+    .attr('font-weight', d => d.ring <= 1 ? '600' : '400')
+    .attr('fill', d => d.ring === 2 ? '#b0b8c4' : '#e6edf3')
+    .text(d => d.node.name);
+
+  // --- Interactions ---
+  merged.on('click', (event, d) => {
+    event.stopPropagation();
+    if (d.ring === 0 && d.node._parent) {
+      // Click center → go up
+      plungeTo(d.node._parent);
+    } else if (d.ring === 1 && d.node.children && d.node.children.length > 0) {
+      // Click ring 1 → plunge in
+      plungeTo(d.node);
+    } else if (d.node.url) {
+      window.open(d.node.url, '_blank');
+    }
+  })
+  .on('mouseenter', (event, d) => {
+    const tt = document.getElementById('tooltip');
+    const hasKids = d.node.children && d.node.children.length > 0;
+    let action = '';
+    if (d.ring === 0 && d.node._parent) action = '<span class="tt-action">Click to surface up</span>';
+    else if (d.ring === 1 && hasKids) action = `<span class="tt-action">Click to plunge into ${d.node.children.length} items</span>`;
+    else if (d.node.url) action = '<span class="tt-action">Click to open on GitHub</span>';
+
+    tt.innerHTML = `
+      <div class="tt-title" style="color:${d.node.color || '#c9d1d9'}">${d.node.name}</div>
+      ${d.node.sub ? `<div class="tt-status" style="color:${d.node.color}">${d.node.sub}</div>` : ''}
+      <div class="tt-desc">${d.node.desc || ''}</div>
+      ${action}
+    `;
+    tt.style.opacity = 1;
+    const rect = document.getElementById('container').getBoundingClientRect();
+    let left = event.clientX - rect.left + 16;
+    let top = event.clientY - rect.top - 10;
+    if (left + 300 > rect.width) left = event.clientX - rect.left - 316;
+    if (top + 200 > rect.height) top = event.clientY - rect.top - 200;
+    tt.style.left = left + 'px'; tt.style.top = top + 'px';
+  })
+  .on('mouseleave', () => { tooltip.style.opacity = 0; });
+
+  // Breadcrumb
+  updateBreadcrumb(focus);
 }
-window.toggleLabels = toggleLabels;
 
-window.addEventListener('resize', () => { svg.attr('width', innerWidth).attr('height', innerHeight); });
+function plungeTo(node) {
+  render(node, true);
+}
+window.plungeTo = plungeTo;
+
+// --- BREADCRUMB ---
+function updateBreadcrumb(focus) {
+  const bc = document.getElementById('breadcrumb');
+  const path = [];
+  let n = focus;
+  while (n) { path.unshift(n); n = n._parent; }
+  if (path.length <= 1) { bc.innerHTML = ''; return; }
+  bc.innerHTML = path.map((p, i) => {
+    if (i === path.length - 1) return `<span class="current" style="color:${p.color}">${p.name}</span>`;
+    return `<span onclick="plungeTo(window._bcNodes[${i}])" style="color:${p.color}">${p.name}</span><span class="sep"> › </span>`;
+  }).join('');
+  window._bcNodes = path;
+}
+
+// --- INIT ---
+render(tree, false);
+
+window.addEventListener('resize', () => {
+  svg.attr('width', innerWidth).attr('height', innerHeight);
+});
 </script>
 </body>
 </html>
