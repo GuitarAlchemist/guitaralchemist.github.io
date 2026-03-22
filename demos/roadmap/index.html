@@ -3,86 +3,91 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ecosystem Roadmap — Poincar&eacute; Disk</title>
+  <title>Ecosystem Roadmap — Poincar&eacute; Ball</title>
   <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; overflow: hidden; }
-
     #container { width: 100vw; height: 100vh; position: relative; }
+    canvas#bg-canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
+    svg { display: block; position: relative; z-index: 1; }
 
-    svg { display: block; }
-
-    /* Tooltip */
     .tooltip {
       position: absolute; pointer-events: none; opacity: 0;
-      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-      padding: 12px 16px; max-width: 300px; font-size: 13px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 100;
-      transition: opacity 0.15s;
+      background: #161b22ee; border: 1px solid #30363d; border-radius: 8px;
+      padding: 12px 16px; max-width: 320px; font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6); z-index: 100;
+      transition: opacity 0.15s; backdrop-filter: blur(8px);
     }
     .tooltip .tt-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
     .tooltip .tt-status { font-size: 11px; font-style: italic; margin-bottom: 6px; }
     .tooltip .tt-desc { color: #8b949e; font-size: 12px; line-height: 1.4; }
     .tooltip .tt-link { color: #58a6ff; font-size: 11px; margin-top: 6px; display: block; }
+    .tooltip .tt-ring { font-size: 10px; color: #484f58; margin-top: 4px; }
 
-    /* Controls */
     #controls {
       position: absolute; top: 16px; right: 16px; z-index: 50;
-      display: flex; gap: 8px;
+      display: flex; gap: 8px; flex-wrap: wrap;
     }
     #controls button {
       background: #21262d; border: 1px solid #30363d; color: #c9d1d9;
-      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px;
+      padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px;
+      transition: background 0.15s;
     }
     #controls button:hover { background: #30363d; }
+    #controls button.active { background: #388bfd33; border-color: #388bfd; color: #58a6ff; }
 
-    /* Header */
-    #header {
-      position: absolute; top: 16px; left: 16px; z-index: 50;
-    }
+    #header { position: absolute; top: 16px; left: 16px; z-index: 50; }
     #header h1 { font-size: 20px; font-weight: 600; }
     #header p { font-size: 12px; color: #8b949e; margin-top: 2px; }
 
-    /* Legend */
+    #breadcrumb {
+      position: absolute; top: 56px; left: 16px; z-index: 50;
+      font-size: 13px; color: #58a6ff; display: none;
+    }
+    #breadcrumb span { cursor: pointer; }
+    #breadcrumb span:hover { text-decoration: underline; }
+
     #legend {
       position: absolute; bottom: 16px; left: 16px; z-index: 50;
       background: #161b22cc; border: 1px solid #30363d; border-radius: 8px;
-      padding: 12px 16px; font-size: 12px;
+      padding: 12px 16px; font-size: 12px; backdrop-filter: blur(4px);
     }
     .legend-item { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
     .legend-swatch { width: 12px; height: 12px; border-radius: 3px; }
 
-    /* Depth legend */
     #depth-legend {
       position: absolute; bottom: 16px; right: 16px; z-index: 50;
       background: #161b22cc; border: 1px solid #30363d; border-radius: 8px;
-      padding: 12px 16px; font-size: 12px; color: #8b949e;
+      padding: 12px 16px; font-size: 12px; color: #8b949e; backdrop-filter: blur(4px);
     }
 
-    /* Stats bar */
     #stats {
       position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
       z-index: 50; font-size: 12px; color: #58a6ff;
     }
 
-    /* Node styles */
     .node { cursor: pointer; }
-    .node:hover circle { filter: brightness(1.3); }
+    .node:hover circle.main-circle { filter: brightness(1.4) drop-shadow(0 0 6px currentColor); }
     .node text { pointer-events: none; }
-    .ring-line { pointer-events: none; }
   </style>
 </head>
 <body>
   <div id="container">
+    <canvas id="bg-canvas"></canvas>
+
     <div id="header">
       <h1>GuitarAlchemist Ecosystem Roadmap</h1>
-      <p>Poincar&eacute; Disk &mdash; center = core, edge = horizon. Scroll to zoom, drag to pan.</p>
+      <p>Poincar&eacute; Ball &mdash; 3D hyperbolic space. Scroll to zoom, drag to pan. Click nodes to drill down.</p>
     </div>
+
+    <div id="breadcrumb"><span onclick="zoomToRoot()">All</span></div>
 
     <div id="controls">
       <button onclick="resetView()">Reset View</button>
       <button onclick="toggleLabels()">Toggle Labels</button>
+      <button onclick="toggle3D()" id="btn3d" class="active">3D Curvature</button>
+      <button onclick="toggleGlow()" id="btnGlow" class="active">Glow</button>
     </div>
 
     <div class="tooltip" id="tooltip"></div>
@@ -98,13 +103,14 @@
     </div>
 
     <div id="depth-legend">
-      <div>&#9679; Center = Core</div>
-      <div>&#9679; Middle = Active</div>
-      <div>&#9675; Edge = Horizon</div>
+      <div>&#11044; Center = Core</div>
+      <div>&#11044; Middle = Active</div>
+      <div>&#9711; Edge = Horizon (infinite)</div>
+      <div style="margin-top:6px; font-size:11px; color:#58a6ff;">Click a core node to zoom in</div>
     </div>
 
     <div id="stats">
-      7 repos &nbsp;|&nbsp; 200+ MCP tools &nbsp;|&nbsp; 18 grammars &nbsp;|&nbsp; 24 policies &nbsp;|&nbsp; 13 departments &nbsp;|&nbsp; 14 courses &nbsp;|&nbsp; 6 languages
+      7 repos &nbsp;|&nbsp; 200+ MCP tools &nbsp;|&nbsp; 19 grammars &nbsp;|&nbsp; 24 policies &nbsp;|&nbsp; 14 departments &nbsp;|&nbsp; 15 courses &nbsp;|&nbsp; 6 languages
     </div>
   </div>
 
@@ -115,265 +121,430 @@ const COLORS = {
   sci: '#e06c75', human: '#c678dd', infra: '#56b6c2', meta: '#e5c07b',
 };
 
-const nodes = [
-  // Center
-  { id: 'demerzel', label: 'Demerzel', sublabel: 'Governance', r: 0, theta: 0, ring: 0,
-    color: COLORS.core, size: 30, desc: 'AI governance framework — constitutions, personas, tetravalent logic, alignment policies, behavioral tests.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel' },
+// Hierarchical data for circle-icicle zoom
+const data = {
+  id: 'root', label: 'GuitarAlchemist', color: COLORS.core, ring: -1,
+  children: [
+    { id: 'demerzel', label: 'Demerzel', sublabel: 'Governance', r: 0, theta: 0, ring: 0,
+      color: COLORS.core, size: 30, desc: 'AI governance framework — constitutions, personas, tetravalent logic, alignment policies, behavioral tests.',
+      url: 'https://github.com/GuitarAlchemist/Demerzel',
+      children: [
+        { id: 'constitution', label: 'Constitution', sublabel: '11 Articles', ring: 1, color: COLORS.gov, size: 20,
+          desc: 'Operational ethics: truthfulness, transparency, reversibility, proportionality, non-deception, escalation, auditability, observability, bounded autonomy, stakeholder pluralism, ethical stewardship.',
+          url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/default.constitution.md',
+          children: [
+            { id: 'fuzzy', label: 'Fuzzy Enum/DU', sublabel: 'SPEC READY', ring: 2, color: COLORS.gov, size: 14, desc: 'Fuzzy discriminated unions for F# — FuzzyEnum<T>, FuzzyDU<T,P>, FuzzyBuilder CE.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/docs/superpowers/specs/2026-03-22-fuzzy-enum-du-design.md' },
+            { id: 'bsdetector', label: 'BS Detector', sublabel: 'v2', ring: 2, color: COLORS.gov, size: 14, desc: 'BS detection grammar — 10 domains, concrete examples.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/gov-bs-generators.ebnf' },
+            { id: 'staleness', label: 'Staleness', sublabel: 'POLICY', ring: 2, color: COLORS.gov, size: 14, desc: 'Per-category freshness thresholds.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/staleness-detection-policy.yaml' },
+            { id: 'blindspot', label: 'Blind Spots', sublabel: 'GRAMMAR', ring: 2, color: COLORS.gov, size: 14, desc: 'Staleness, coverage, structural, cognitive blind spots.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/gov-blind-spot-detection.ebnf' },
+          ]
+        },
+        { id: 'tetravalent', label: 'Tetravalent', sublabel: 'T/F/U/C', ring: 1, color: COLORS.core, size: 20,
+          desc: 'Four-valued logic: True, False, Unknown, Contradictory.',
+          url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/logic',
+          children: [
+            { id: 'ktheory', label: 'K-Theory', sublabel: 'HORIZON', ring: 3, color: '#8b949e', size: 9, desc: 'Grothendieck K-theory for governance bundles.', url: null },
+          ]
+        },
+        { id: 'streeling', label: 'Streeling', sublabel: '14 Depts', ring: 1, color: COLORS.music, size: 20,
+          desc: 'Streeling University — 14 departments. Research cycles produce courses via grammar-weighted scientific method.',
+          url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling',
+          children: [
+            { id: 'courses', label: '15 Courses', sublabel: '6 Languages', ring: 2, color: COLORS.music, size: 14, desc: '80 total (15 EN + 65 translations). Cultural adaptation per language.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/courses' },
+            { id: 'satriani', label: 'Satriani', sublabel: 'ADVANCED', ring: 2, color: COLORS.music, size: 14, desc: 'Advanced guitar technique grammar.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/music-satriani-advanced.ebnf' },
+            { id: 'researchcycle', label: 'Research Cycle', sublabel: 'VALIDATED', ring: 2, color: COLORS.music, size: 14, desc: '2 cycles complete: CAGED geometry + EQ/compression order.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/research-cycles' },
+            { id: 'translations', label: 'Translations', sublabel: '65 FILES', ring: 3, color: '#8b949e', size: 9, desc: '13 courses x 5 languages.', url: null },
+            { id: 'notebooklm', label: 'NotebookLM', sublabel: 'EXPAND', ring: 3, color: '#8b949e', size: 9, desc: 'Expand to 10 notebooks.', url: null },
+          ]
+        },
+        { id: 'driver', label: 'Driver', sublabel: '8-Phase', ring: 1, color: COLORS.infra, size: 20,
+          desc: 'Autonomous driver: WAKE → RECON → PLAN → EXECUTE → VERIFY → COMPOUND → PERSIST → SLEEP.',
+          url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-drive/SKILL.md',
+          children: [
+            { id: 'discord', label: 'Discord Bot', sublabel: 'LIVE', ring: 2, color: COLORS.infra, size: 14, desc: 'Always-on Node.js bot.', url: 'https://github.com/GuitarAlchemist/demerzel-bot' },
+            { id: 'readmesync', label: 'README Sync', sublabel: 'IN DRIVER', ring: 2, color: COLORS.human, size: 14, desc: 'Auto-sync counts in README.md.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/readme-sync-policy.yaml' },
+            { id: 'dashboard', label: 'Reports', sublabel: 'SKILL', ring: 2, color: COLORS.infra, size: 14, desc: '/demerzel report — 6 sections, 3 formats.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-report/SKILL.md' },
+            { id: 'discordch', label: 'Channels', sublabel: 'BLOCKED', ring: 3, color: '#8b949e', size: 9, desc: 'Bot needs Manage Channels permission.', url: null },
+          ]
+        },
+        { id: 'metagrammar', label: 'Meta-Grammar', sublabel: '19 Grammars', ring: 1, color: COLORS.meta, size: 20,
+          desc: '19 EBNF grammars with living evolution policy.',
+          url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/grammars',
+          children: [
+            { id: 'metafix', label: 'MetaFix', sublabel: '5 LEVELS', ring: 2, color: COLORS.meta, size: 14, desc: 'Fix the system that allowed the problem.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metafix/SKILL.md' },
+            { id: 'metabuild', label: 'MetaBuild', sublabel: 'FACTORY', ring: 2, color: COLORS.meta, size: 14, desc: 'Factory of factories — one command, complete department.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metabuild/SKILL.md' },
+            { id: 'mog', label: 'MOG Executor', sublabel: '42 TASKS', ring: 2, color: COLORS.sci, size: 14, desc: 'MCP Orchestration Grammar.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/core-meta-grammar.ebnf' },
+            { id: 'extgrammars', label: 'External', sublabel: '15 REFS', ring: 3, color: '#8b949e', size: 9, desc: 'External grammars for distillation.', url: null },
+          ]
+        },
+        { id: 'conscience', label: 'Conscience', sublabel: 'Maturing', ring: 1, color: COLORS.gov, size: 20,
+          desc: 'Proto-conscience: signals, regrets, patterns. Assessment: maturing.',
+          url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/conscience',
+          children: [
+            { id: 'contlearning', label: 'Cont. Learning', sublabel: 'POLICY', ring: 2, color: COLORS.human, size: 14, desc: 'Hook-based observation pipeline.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/continuous-learning-policy.yaml' },
+            { id: 'patterns', label: 'Patterns', sublabel: '5 FOUND', ring: 2, color: COLORS.human, size: 14, desc: '4 anti-patterns + 1 positive.', url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/patterns' },
+            { id: 'contextbudget', label: 'Context Budget', sublabel: 'ECC', ring: 2, color: COLORS.human, size: 14, desc: 'Token overhead audit.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-context-budget/SKILL.md' },
+            { id: 'mlpipelines', label: 'ML Pipelines', sublabel: 'ix', ring: 2, color: COLORS.sci, size: 14, desc: 'Rust ML — 83 tests.', url: 'https://github.com/GuitarAlchemist/ix' },
+            { id: 'tarsmcp', label: 'tars MCP', sublabel: '151 TOOLS', ring: 2, color: COLORS.sci, size: 14, desc: 'Cataloged by risk + department.', url: 'https://github.com/GuitarAlchemist/tars' },
+          ]
+        },
+      ]
+    },
+  ]
+};
 
-  // Ring 1: Core systems (r=0.3)
-  { id: 'constitution', label: 'Constitution', sublabel: '11 Articles', r: 0.3, theta: 0, ring: 1,
-    color: COLORS.gov, size: 20, desc: 'Operational ethics: truthfulness, transparency, reversibility, proportionality, non-deception, escalation, auditability, observability, bounded autonomy, stakeholder pluralism, ethical stewardship.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/default.constitution.md' },
-  { id: 'tetravalent', label: 'Tetravalent', sublabel: 'T/F/U/C', r: 0.3, theta: Math.PI/3, ring: 1,
-    color: COLORS.core, size: 20, desc: 'Four-valued logic extending boolean with Unknown and Contradictory. Every belief, conclusion, and assessment maps to T/F/U/C.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/logic' },
-  { id: 'streeling', label: 'Streeling', sublabel: '13 Depts', r: 0.3, theta: 2*Math.PI/3, ring: 1,
-    color: COLORS.music, size: 20, desc: 'Streeling University — 13 departments from Music Theory to Psychohistory. Research cycles produce courses via grammar-weighted scientific method.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling' },
-  { id: 'driver', label: 'Driver', sublabel: '8-Phase', r: 0.3, theta: Math.PI, ring: 1,
-    color: COLORS.infra, size: 20, desc: 'Autonomous driver cycle: WAKE → RECON → PLAN → EXECUTE → VERIFY → COMPOUND → PERSIST → SLEEP. Runs across all repos.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-drive/SKILL.md' },
-  { id: 'metagrammar', label: 'Meta-Grammar', sublabel: 'Self-Governing', r: 0.3, theta: 4*Math.PI/3, ring: 1,
-    color: COLORS.meta, size: 20, desc: '18 EBNF grammars with living evolution policy. Grammars evolve through research cycles with Bayesian weight updates.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/grammars' },
-  { id: 'conscience', label: 'Conscience', sublabel: 'Signals', r: 0.3, theta: 5*Math.PI/3, ring: 1,
-    color: COLORS.gov, size: 20, desc: 'Proto-conscience system: discomfort signals, regret tracking, pattern detection, weekly reports. Assessment: maturing.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/conscience' },
+// --- 3D BACKGROUND (Canvas) ---
+let show3D = true;
+let showGlow = true;
 
-  // Ring 2: Active systems (r=0.6)
-  { id: 'fuzzy', label: 'Fuzzy Enum/DU', sublabel: 'SPEC READY', r: 0.6, theta: -0.15, ring: 2,
-    color: COLORS.gov, size: 14, desc: 'Fuzzy discriminated unions for F# — FuzzyEnum<T>, FuzzyDU<T,P>, FuzzyBuilder CE with configurable propagation.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/docs/superpowers/specs/2026-03-22-fuzzy-enum-du-design.md' },
-  { id: 'bsdetector', label: 'BS Detector', sublabel: 'v2 — 10 Domains', r: 0.6, theta: 0.2, ring: 2,
-    color: COLORS.gov, size: 14, desc: 'Belief-state-based BS detection grammar with 10 domain-specific generators and concrete examples.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/gov-bs-generators.ebnf' },
-  { id: 'staleness', label: 'Staleness Detection', sublabel: '30+ STALE', r: 0.6, theta: 0.5, ring: 2,
-    color: COLORS.gov, size: 14, desc: 'Per-category freshness thresholds: beliefs (7 days), conscience (14 days), grammars (30 days), courses (90 days).',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/staleness-detection-policy.yaml' },
-  { id: 'blindspot', label: 'Blind Spots', sublabel: 'GRAMMAR', r: 0.6, theta: 0.8, ring: 2,
-    color: COLORS.gov, size: 14, desc: 'Blind spot detection grammar — staleness, coverage, structural, cognitive, and meta blind spots.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/gov-blind-spot-detection.ebnf' },
-  { id: 'courses', label: '14 Courses', sublabel: '6 Languages', r: 0.6, theta: 1.1, ring: 2,
-    color: COLORS.music, size: 14, desc: 'Courses across all 13 departments. Multilingual: EN, ES, PT, FR, IT, DE with cultural adaptation.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/courses' },
-  { id: 'satriani', label: 'Satriani Advanced', sublabel: 'NEW', r: 0.6, theta: 1.4, ring: 2,
-    color: COLORS.music, size: 14, desc: 'Advanced guitar technique grammar — Satriani-style legato, tapping, whammy bar, exotic scales.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/music-satriani-advanced.ebnf' },
-  { id: 'researchcycle', label: 'Research Cycle', sublabel: 'VALIDATED', r: 0.6, theta: 1.7, ring: 2,
-    color: COLORS.music, size: 14, desc: 'First cycle complete: guitar-studies CAGED geometry (T, 0.85). Pipeline validated end-to-end with cross-model validation.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/streeling/research-cycles' },
-  { id: 'mlpipelines', label: 'ML Pipelines', sublabel: 'ix', r: 0.6, theta: 2.1, ring: 2,
-    color: COLORS.sci, size: 14, desc: 'Rust ML pipelines in ix: ViolationPatternAnalyzer, RemediationOptimizer, StalenessPredictor, AnomalyDetector. 83 tests.',
-    url: 'https://github.com/GuitarAlchemist/ix' },
-  { id: 'tarsmcp', label: '151 tars MCP', sublabel: 'CATALOGED', r: 0.6, theta: 2.5, ring: 2,
-    color: COLORS.sci, size: 14, desc: '151 MCP tools in tars, cataloged by risk level and Streeling department. Grammar-constrained governance generation.',
-    url: 'https://github.com/GuitarAlchemist/tars' },
-  { id: 'mog', label: 'MOG Executor', sublabel: '42 TASKS', r: 0.6, theta: 2.9, ring: 2,
-    color: COLORS.sci, size: 14, desc: 'MCP Orchestration Grammar — general-purpose pipeline for chaining MCP tools with governance gates. 42-task implementation plan.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/core-meta-grammar.ebnf' },
-  { id: 'discord', label: 'Discord Bot', sublabel: 'LIVE', r: 0.6, theta: 3.3, ring: 2,
-    color: COLORS.infra, size: 14, desc: 'Always-on Node.js bot (discord.js + Anthropic SDK). Posts governance reports, embeds with clickable GitHub links.',
-    url: 'https://github.com/GuitarAlchemist/demerzel-bot' },
-  { id: 'metafix', label: 'MetaFix', sublabel: '5 LEVELS', r: 0.6, theta: 3.65, ring: 2,
-    color: COLORS.meta, size: 14, desc: 'Meta-fix: instance → batch → detection → prevention → system. Don\'t fix the problem, fix the system that allowed it.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metafix/SKILL.md' },
-  { id: 'metabuild', label: 'MetaBuild', sublabel: 'FACTORY', r: 0.6, theta: 4.0, ring: 2,
-    color: COLORS.meta, size: 14, desc: 'Factory of factories — given a domain, bootstrap department + grammar + weights + research config + course pipeline + persona + tests.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-metabuild/SKILL.md' },
-  { id: 'contextbudget', label: 'Context Budget', sublabel: 'ECC', r: 0.6, theta: 4.4, ring: 2,
-    color: COLORS.human, size: 14, desc: 'Token overhead audit across skills, rules, MCP tools, CLAUDE.md, and memory. Inspired by Everything Claude Code.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-context-budget/SKILL.md' },
-  { id: 'contlearning', label: 'Continuous Learning', sublabel: 'POLICY', r: 0.6, theta: 4.8, ring: 2,
-    color: COLORS.human, size: 14, desc: 'Hook-based observation → pattern extraction → promotion pipeline. Inspired by ECC continuous learning.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/continuous-learning-policy.yaml' },
-  { id: 'patterns', label: 'Patterns Catalog', sublabel: '5 FOUND', r: 0.6, theta: 5.2, ring: 2,
-    color: COLORS.human, size: 14, desc: '4 anti-patterns + 1 positive pattern detected from session analysis. Governance drift, blind spot, premature governance, shadow governance.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/state/patterns' },
-  { id: 'readmesync', label: 'README Sync', sublabel: 'IN DRIVER', r: 0.6, theta: 5.6, ring: 2,
-    color: COLORS.human, size: 14, desc: 'Auto-sync artifact counts in README.md during driver COMPOUND phase. Link verification during RECON.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/policies/readme-sync-policy.yaml' },
-  { id: 'grammars', label: '18 Grammars', sublabel: 'LIVING', r: 0.6, theta: 6.0, ring: 2,
-    color: COLORS.core, size: 14, desc: 'core-, music-, sci-, gov-, human- prefixed. Living evolution policy with 5-stage lifecycle and Bayesian weight updates.',
-    url: 'https://github.com/GuitarAlchemist/Demerzel/tree/master/grammars' },
+function draw3DBackground() {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  canvas.width = W; canvas.height = H;
+  ctx.clearRect(0, 0, W, H);
+  if (!show3D) return;
 
-  // Ring 3: Horizon (r=0.88)
-  { id: 'translations', label: '55 Course Translations', r: 0.88, theta: 0.2, ring: 3, color: '#8b949e', size: 9, desc: '11 courses x 5 languages with cultural adaptation.', url: 'https://github.com/GuitarAlchemist/Demerzel/issues/70' },
-  { id: 'ktheory', label: 'K-Theory Bundles', r: 0.88, theta: 0.6, ring: 3, color: '#8b949e', size: 9, desc: 'Grothendieck K-theory for governance bundle classification. Topos theory for multi-valued logic.', url: null },
-  { id: 'extgrammars', label: 'External Grammars', r: 0.88, theta: 1.0, ring: 3, color: '#8b949e', size: 9, desc: '15 external grammars cataloged for future distillation into Demerzel format.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/docs/external-grammar-references.md' },
-  { id: 'typeprovider', label: 'F# Type Provider', r: 0.88, theta: 1.4, ring: 3, color: '#8b949e', size: 9, desc: 'Type provider for grammar-constrained generation in tars. Phased: core + CE first, provider later.', url: null },
-  { id: 'filewatcher', label: 'File Watcher', r: 0.88, theta: 1.8, ring: 3, color: '#8b949e', size: 9, desc: 'Hook-based file watcher for continuous learning observation pipeline.', url: null },
-  { id: 'dashboard', label: 'Dashboard Reports', sublabel: 'SKILL', r: 0.88, theta: 2.2, ring: 3, color: '#8b949e', size: 9, desc: '/demerzel report — 6 sections, 3 formats, stories, drill-downs.', url: 'https://github.com/GuitarAlchemist/Demerzel/blob/master/.claude/skills/demerzel-report/SKILL.md' },
-  { id: 'beliefrefresh', label: 'Belief Refresh', sublabel: 'DONE', r: 0.88, theta: 2.6, ring: 3, color: '#8b949e', size: 9, desc: '3 beliefs updated, 4 archived. Process established.', url: null },
-  { id: 'signals', label: 'Process Signals', sublabel: 'DONE', r: 0.88, theta: 3.0, ring: 3, color: '#8b949e', size: 9, desc: '5/5 conscience signals resolved. Conscience: nascent → maturing.', url: null },
-  { id: 'discordch', label: 'Discord Channels', r: 0.88, theta: 3.4, ring: 3, color: '#8b949e', size: 9, desc: '4 channels: governance, academy, research, dev-ops. Blocked on bot permissions.', url: 'https://github.com/GuitarAlchemist/Demerzel/issues/71' },
-  { id: 'sympy', label: 'SymPy MCP', r: 0.88, theta: 3.8, ring: 3, color: '#8b949e', size: 9, desc: 'Free symbolic math computation for research cycles.', url: null },
-  { id: 'notebooklm', label: 'NotebookLM Expand', r: 0.88, theta: 4.2, ring: 3, color: '#8b949e', size: 9, desc: 'Expand from 4 to 10 notebooks covering all departments.', url: 'https://github.com/GuitarAlchemist/Demerzel/issues/15' },
-  { id: 'gamcp', label: 'GA MCP Integrate', r: 0.88, theta: 4.6, ring: 3, color: '#8b949e', size: 9, desc: 'Connect GA chatbot to live MCP tools for music theory computation.', url: null },
-  { id: 'ghpages', label: 'GitHub Pages', sublabel: 'THIS!', r: 0.88, theta: 5.0, ring: 3, color: '#58a6ff', size: 9, desc: 'Interactive D3.js visualizations on guitaralchemist.github.io.', url: 'https://github.com/GuitarAlchemist/Demerzel/issues/82' },
-  { id: 'hookprofiles', label: 'Hook Profiles', r: 0.88, theta: 5.4, ring: 3, color: '#8b949e', size: 9, desc: 'Claude Code hook profiles for different work modes. Inspired by ECC.', url: null },
-  { id: 'boardviews', label: 'Board Views', r: 0.88, theta: 5.8, ring: 3, color: '#8b949e', size: 9, desc: 'Project board views: Board, By Repo, By Priority.', url: 'https://github.com/orgs/GuitarAlchemist/projects/2' },
-];
+  const cxB = W / 2, cyB = H / 2;
+  const R = Math.min(W, H) * 0.42;
 
-// Edges: connect center to ring 1
-const edges = [
-  { source: 'demerzel', target: 'constitution' },
-  { source: 'demerzel', target: 'tetravalent' },
-  { source: 'demerzel', target: 'streeling' },
-  { source: 'demerzel', target: 'driver' },
-  { source: 'demerzel', target: 'metagrammar' },
-  { source: 'demerzel', target: 'conscience' },
-];
+  // 3D sphere illusion via radial gradient
+  const sphereGrad = ctx.createRadialGradient(cxB - R*0.15, cyB - R*0.15, R*0.05, cxB, cyB, R*1.05);
+  sphereGrad.addColorStop(0, 'rgba(40,50,70,0.4)');
+  sphereGrad.addColorStop(0.5, 'rgba(20,28,40,0.3)');
+  sphereGrad.addColorStop(0.85, 'rgba(10,14,20,0.5)');
+  sphereGrad.addColorStop(1, 'rgba(0,0,0,0.8)');
+  ctx.beginPath();
+  ctx.arc(cxB, cyB, R * 1.02, 0, Math.PI * 2);
+  ctx.fillStyle = sphereGrad;
+  ctx.fill();
 
-// --- RENDERING ---
+  // Horizon curvature lines (latitude/longitude on a sphere)
+  ctx.strokeStyle = 'rgba(48,54,61,0.3)';
+  ctx.lineWidth = 0.5;
+
+  // Latitude lines with 3D perspective foreshortening
+  for (let lat = 0.15; lat < 1; lat += 0.15) {
+    ctx.beginPath();
+    const perspR = R * lat;
+    const squeeze = Math.sqrt(1 - lat * lat * 0.3); // subtle vertical squeeze toward edges
+    ctx.save();
+    ctx.translate(cxB, cyB);
+    ctx.scale(1, squeeze);
+    ctx.arc(0, 0, perspR, 0, Math.PI * 2);
+    ctx.restore();
+    ctx.stroke();
+  }
+
+  // Longitude lines (great circle arcs)
+  for (let i = 0; i < 12; i++) {
+    const angle = (i / 12) * Math.PI;
+    ctx.beginPath();
+    ctx.save();
+    ctx.translate(cxB, cyB);
+    ctx.rotate(angle);
+    ctx.scale(1, 0.4); // flatten to create 3D feel
+    ctx.arc(0, 0, R, 0, Math.PI);
+    ctx.restore();
+    ctx.stroke();
+  }
+
+  // Specular highlight (top-left)
+  if (showGlow) {
+    const specGrad = ctx.createRadialGradient(cxB - R*0.25, cyB - R*0.25, 0, cxB - R*0.25, cyB - R*0.25, R*0.5);
+    specGrad.addColorStop(0, 'rgba(100,140,200,0.06)');
+    specGrad.addColorStop(1, 'rgba(100,140,200,0)');
+    ctx.beginPath();
+    ctx.arc(cxB, cyB, R, 0, Math.PI * 2);
+    ctx.fillStyle = specGrad;
+    ctx.fill();
+  }
+
+  // Edge shadow (horizon darkness)
+  const edgeShadow = ctx.createRadialGradient(cxB, cyB, R * 0.7, cxB, cyB, R * 1.02);
+  edgeShadow.addColorStop(0, 'rgba(0,0,0,0)');
+  edgeShadow.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.beginPath();
+  ctx.arc(cxB, cyB, R * 1.02, 0, Math.PI * 2);
+  ctx.fillStyle = edgeShadow;
+  ctx.fill();
+}
+
+// --- SVG RENDERING ---
 const container = document.getElementById('container');
 const width = window.innerWidth;
 const height = window.innerHeight;
-const radius = Math.min(width, height) * 0.42;
-const cx = width / 2;
-const cy = height / 2;
+const diskRadius = Math.min(width, height) * 0.42;
+const centerX = width / 2;
+const centerY = height / 2;
 
 const svg = d3.select('#container')
   .append('svg')
   .attr('width', width)
   .attr('height', height);
 
+// Defs for filters
+const defs = svg.append('defs');
+
+// Glow filter
+const glowFilter = defs.append('filter').attr('id', 'glow');
+glowFilter.append('feGaussianBlur').attr('stdDeviation', 4).attr('result', 'blur');
+glowFilter.append('feMerge').selectAll('feMergeNode')
+  .data(['blur', 'SourceGraphic']).enter()
+  .append('feMergeNode').attr('in', d => d);
+
 const g = svg.append('g');
 
-// Zoom behavior
 const zoom = d3.zoom()
-  .scaleExtent([0.5, 8])
-  .on('zoom', (event) => {
-    g.attr('transform', event.transform);
-  });
-
+  .scaleExtent([0.3, 12])
+  .on('zoom', (event) => { g.attr('transform', event.transform); });
 svg.call(zoom);
 
-// Convert polar (Poincare) to screen coords
-function toScreen(r, theta) {
-  return [cx + r * radius * Math.cos(theta), cy + r * radius * Math.sin(theta)];
+// --- FLATTEN hierarchy for initial rendering ---
+function flattenForRender(node, parentR, parentTheta, depth) {
+  const results = [];
+  if (node.id === 'root') {
+    (node.children || []).forEach(c => results.push(...flattenForRender(c, 0, 0, 0)));
+    return results;
+  }
+  results.push(node);
+  if (node.children) {
+    const baseR = node.ring === 0 ? 0.3 : node.ring === 1 ? 0.6 : 0.88;
+    node.children.forEach((child, i) => {
+      if (child.r === undefined) {
+        const ringR = child.ring === 1 ? 0.3 : child.ring === 2 ? 0.6 : 0.88;
+        const spread = (2 * Math.PI) / 6; // spread children around parent
+        const parentAngle = node.theta || (node.r !== undefined ? node.theta : i * Math.PI / 3);
+        child.r = ringR;
+        child.theta = parentAngle + (i - (node.children.length-1)/2) * 0.35;
+      }
+      results.push(...flattenForRender(child, child.r, child.theta, depth + 1));
+    });
+  }
+  return results;
 }
 
-// --- Draw disk boundary ---
-g.append('circle')
-  .attr('cx', cx).attr('cy', cy).attr('r', radius)
-  .attr('fill', 'none').attr('stroke', '#30363d').attr('stroke-width', 2);
+const allNodes = flattenForRender(data, 0, 0, 0);
 
-// Depth circles
+// Edges from center to ring 1
+const ring1Nodes = allNodes.filter(n => n.ring === 1);
+const centerNode = allNodes.find(n => n.ring === 0);
+
+function toScreen(r, theta) {
+  return [centerX + r * diskRadius * Math.cos(theta), centerY + r * diskRadius * Math.sin(theta)];
+}
+
+// --- Draw disk ---
+// Outer boundary
+g.append('circle')
+  .attr('cx', centerX).attr('cy', centerY).attr('r', diskRadius)
+  .attr('fill', 'none').attr('stroke', '#30363d').attr('stroke-width', 1.5)
+  .attr('stroke-dasharray', '2,2');
+
+// Depth rings
 [0.3, 0.6, 0.85].forEach(r => {
   g.append('circle')
-    .attr('cx', cx).attr('cy', cy).attr('r', r * radius)
+    .attr('cx', centerX).attr('cy', centerY).attr('r', r * diskRadius)
     .attr('fill', 'none').attr('stroke', '#21262d').attr('stroke-width', 0.5)
-    .attr('stroke-dasharray', '4,4');
+    .attr('stroke-dasharray', '4,6').attr('opacity', 0.5);
 });
 
-// --- Draw geodesic-like arcs (edges) ---
+// --- Edges ---
 const edgeGroup = g.append('g').attr('class', 'edges');
-edges.forEach(e => {
-  const src = nodes.find(n => n.id === e.source);
-  const tgt = nodes.find(n => n.id === e.target);
-  const [x1, y1] = toScreen(src.r, src.theta);
-  const [x2, y2] = toScreen(tgt.r, tgt.theta);
+
+// Center to ring 1
+ring1Nodes.forEach(n => {
+  const [x1, y1] = toScreen(0, 0);
+  const [x2, y2] = toScreen(n.r, n.theta);
   edgeGroup.append('line')
-    .attr('class', 'ring-line')
     .attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
-    .attr('stroke', tgt.color).attr('stroke-opacity', 0.25).attr('stroke-width', 1.5);
+    .attr('stroke', n.color).attr('stroke-opacity', 0.2).attr('stroke-width', 1.5);
 });
 
-// --- Draw nodes ---
+// Ring 1 to their children
+allNodes.filter(n => n.ring === 1 && n.children).forEach(parent => {
+  parent.children.forEach(child => {
+    const cn = allNodes.find(n => n.id === child.id);
+    if (cn) {
+      const [x1, y1] = toScreen(parent.r, parent.theta);
+      const [x2, y2] = toScreen(cn.r, cn.theta);
+      edgeGroup.append('line')
+        .attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
+        .attr('stroke', parent.color).attr('stroke-opacity', 0.12).attr('stroke-width', 1);
+    }
+  });
+});
+
+// --- Nodes ---
 const tooltip = document.getElementById('tooltip');
 let labelsVisible = true;
 
 const nodeGroup = g.selectAll('.node')
-  .data(nodes)
+  .data(allNodes)
   .enter()
   .append('g')
   .attr('class', 'node')
   .attr('transform', d => {
     const [x, y] = toScreen(d.r, d.theta);
     return `translate(${x},${y})`;
-  })
-  .on('mouseenter', (event, d) => {
-    const tt = document.getElementById('tooltip');
-    tt.innerHTML = `
-      <div class="tt-title" style="color:${d.color || '#c9d1d9'}">${d.label}</div>
-      ${d.sublabel ? `<div class="tt-status" style="color:${d.color || '#8b949e'}">${d.sublabel}</div>` : ''}
-      <div class="tt-desc">${d.desc || ''}</div>
-      ${d.url ? `<span class="tt-link">Click to open on GitHub</span>` : ''}
-    `;
-    tt.style.opacity = 1;
-
-    const rect = container.getBoundingClientRect();
-    let left = event.clientX - rect.left + 16;
-    let top = event.clientY - rect.top - 10;
-    if (left + 300 > rect.width) left = event.clientX - rect.left - 316;
-    if (top + 150 > rect.height) top = event.clientY - rect.top - 150;
-    tt.style.left = left + 'px';
-    tt.style.top = top + 'px';
-  })
-  .on('mouseleave', () => {
-    tooltip.style.opacity = 0;
-  })
-  .on('click', (event, d) => {
-    if (d.url) window.open(d.url, '_blank');
   });
 
-// Circles
-nodeGroup.append('circle')
-  .attr('r', d => d.size / 2)
-  .attr('fill', d => d.color || '#8b949e')
-  .attr('opacity', d => d.ring === 3 ? 0.6 : 1)
-  .attr('stroke', d => d.ring === 0 ? '#fff' : 'none')
-  .attr('stroke-width', d => d.ring === 0 ? 2 : 0);
-
-// Glow for center
-nodeGroup.filter(d => d.ring === 0)
-  .insert('circle', ':first-child')
-  .attr('r', 22)
+// Glow halos for ring 0 and ring 1
+nodeGroup.filter(d => d.ring <= 1 && showGlow)
+  .append('circle')
+  .attr('class', 'glow-circle')
+  .attr('r', d => d.ring === 0 ? 28 : 16)
   .attr('fill', d => d.color)
-  .attr('opacity', 0.15)
-  .attr('filter', 'blur(8px)');
+  .attr('opacity', d => d.ring === 0 ? 0.15 : 0.08)
+  .attr('filter', 'url(#glow)');
+
+// Main circles
+nodeGroup.append('circle')
+  .attr('class', 'main-circle')
+  .attr('r', d => d.size / 2)
+  .attr('fill', d => {
+    if (d.ring === 3) return d.color || '#8b949e';
+    return d.color;
+  })
+  .attr('opacity', d => d.ring === 3 ? 0.5 : d.ring === 2 ? 0.85 : 1)
+  .attr('stroke', d => d.ring === 0 ? '#ffffff' : d.ring === 1 ? d.color : 'none')
+  .attr('stroke-width', d => d.ring === 0 ? 2.5 : d.ring === 1 ? 1 : 0)
+  .attr('stroke-opacity', d => d.ring === 1 ? 0.4 : 1);
+
+// Pulse animation on center
+nodeGroup.filter(d => d.ring === 0)
+  .append('circle')
+  .attr('class', 'pulse-circle')
+  .attr('r', 15)
+  .attr('fill', 'none')
+  .attr('stroke', COLORS.core)
+  .attr('stroke-width', 1)
+  .attr('opacity', 0);
+
+// Animate pulse
+function animatePulse() {
+  g.selectAll('.pulse-circle')
+    .attr('r', 15).attr('opacity', 0.4)
+    .transition().duration(2000).ease(d3.easeCubicOut)
+    .attr('r', 35).attr('opacity', 0)
+    .on('end', animatePulse);
+}
+animatePulse();
 
 // Labels
 nodeGroup.append('text')
   .attr('class', 'node-label')
-  .attr('dy', d => -(d.size / 2 + 6))
+  .attr('dy', d => -(d.size / 2 + 5))
   .attr('text-anchor', 'middle')
-  .attr('fill', d => d.ring === 3 ? '#8b949e' : '#fff')
-  .attr('font-size', d => d.ring === 0 ? 16 : d.ring === 1 ? 11 : d.ring === 2 ? 9 : 7.5)
+  .attr('fill', d => d.ring >= 3 ? '#8b949e' : '#e6edf3')
+  .attr('font-size', d => d.ring === 0 ? 16 : d.ring === 1 ? 11 : d.ring === 2 ? 8.5 : 7)
   .attr('font-weight', d => d.ring <= 1 ? '600' : '400')
-  .attr('opacity', d => d.ring === 3 ? 0.8 : 1)
+  .attr('opacity', d => d.ring === 3 ? 0.7 : 1)
   .text(d => d.label);
 
 // Sublabels
 nodeGroup.filter(d => d.sublabel)
   .append('text')
   .attr('class', 'node-sublabel')
-  .attr('dy', d => d.size / 2 + 14)
+  .attr('dy', d => d.size / 2 + 13)
   .attr('text-anchor', 'middle')
   .attr('fill', d => d.color || '#8b949e')
   .attr('font-size', d => d.ring <= 1 ? 9 : 7)
   .attr('font-style', 'italic')
-  .attr('opacity', d => d.ring === 3 ? 0.7 : 0.9)
+  .attr('opacity', d => d.ring === 3 ? 0.6 : 0.85)
   .text(d => d.sublabel);
 
-// --- Controls ---
+// Tooltip + click
+nodeGroup
+  .on('mouseenter', (event, d) => {
+    const tt = document.getElementById('tooltip');
+    const ringNames = ['Core', 'System', 'Active', 'Horizon'];
+    tt.innerHTML = `
+      <div class="tt-title" style="color:${d.color || '#c9d1d9'}">${d.label}</div>
+      ${d.sublabel ? `<div class="tt-status" style="color:${d.color || '#8b949e'}">${d.sublabel}</div>` : ''}
+      <div class="tt-desc">${d.desc || ''}</div>
+      ${d.children ? `<div class="tt-link">Click to zoom into ${d.children.length} sub-items</div>` : ''}
+      ${d.url && !d.children ? `<span class="tt-link">Click to open on GitHub</span>` : ''}
+      <div class="tt-ring">Ring: ${ringNames[d.ring] || 'Root'} ${d.children ? '| Has children' : ''}</div>
+    `;
+    tt.style.opacity = 1;
+    const rect = container.getBoundingClientRect();
+    let left = event.clientX - rect.left + 16;
+    let top = event.clientY - rect.top - 10;
+    if (left + 320 > rect.width) left = event.clientX - rect.left - 336;
+    if (top + 150 > rect.height) top = event.clientY - rect.top - 150;
+    tt.style.left = left + 'px';
+    tt.style.top = top + 'px';
+  })
+  .on('mouseleave', () => { tooltip.style.opacity = 0; })
+  .on('click', (event, d) => {
+    if (d.children && d.children.length > 0) {
+      zoomToNode(d);
+    } else if (d.url) {
+      window.open(d.url, '_blank');
+    }
+  });
+
+// --- ZOOM TO NODE (circle icicle behavior) ---
+function zoomToNode(d) {
+  const [nx, ny] = toScreen(d.r, d.theta);
+  const scale = d.ring === 0 ? 2.5 : d.ring === 1 ? 4 : 6;
+
+  svg.transition().duration(750).call(
+    zoom.transform,
+    d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(scale)
+      .translate(-nx, -ny)
+  );
+
+  // Show breadcrumb
+  const bc = document.getElementById('breadcrumb');
+  bc.style.display = 'block';
+  bc.innerHTML = `<span onclick="zoomToRoot()">All</span> &rsaquo; <span style="color:${d.color}">${d.label}</span>`;
+}
+
+function zoomToRoot() {
+  svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity);
+  document.getElementById('breadcrumb').style.display = 'none';
+}
+
+// --- CONTROLS ---
 function resetView() {
-  svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+  zoomToRoot();
 }
 
 function toggleLabels() {
   labelsVisible = !labelsVisible;
   g.selectAll('.node-label, .node-sublabel')
     .transition().duration(200)
-    .attr('opacity', labelsVisible ? (d => d.ring === 3 ? 0.8 : 1) : 0);
+    .attr('opacity', labelsVisible ? (d => d.ring >= 3 ? 0.7 : 1) : 0);
 }
 
-// Resize handler
+function toggle3D() {
+  show3D = !show3D;
+  document.getElementById('btn3d').classList.toggle('active', show3D);
+  draw3DBackground();
+}
+
+function toggleGlow() {
+  showGlow = !showGlow;
+  document.getElementById('btnGlow').classList.toggle('active', showGlow);
+  g.selectAll('.glow-circle')
+    .transition().duration(300)
+    .attr('opacity', showGlow ? (d => d.ring === 0 ? 0.15 : 0.08) : 0);
+  draw3DBackground();
+}
+
+// --- INIT ---
+draw3DBackground();
+
 window.addEventListener('resize', () => {
   const w = window.innerWidth;
   const h = window.innerHeight;
   svg.attr('width', w).attr('height', h);
+  draw3DBackground();
 });
 </script>
 </body>
