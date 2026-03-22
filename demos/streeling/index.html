@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streeling University Dashboard — Guitar Alchemist</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117; color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Nav */
+    nav {
+      background: #161b22; border-bottom: 1px solid #30363d;
+      padding: 12px 24px; display: flex; align-items: center; gap: 24px;
+    }
+    nav .brand { font-weight: 700; font-size: 1.1rem; color: #f0f6fc; }
+    nav .links { display: flex; gap: 16px; margin-left: auto; }
+    nav .links a { color: #8b949e; font-size: 0.9rem; }
+    nav .links a:hover { color: #c9d1d9; }
+
+    .container { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+    /* Header */
+    .page-header {
+      text-align: center; margin-bottom: 32px;
+      padding-bottom: 24px; border-bottom: 1px solid #30363d;
+    }
+    .page-header h1 { font-size: 2rem; color: #f0f6fc; margin-bottom: 8px; }
+    .page-header p { color: #8b949e; font-size: 1rem; }
+
+    /* Summary stats */
+    .summary-bar {
+      display: flex; justify-content: center; gap: 32px;
+      margin-bottom: 32px; flex-wrap: wrap;
+    }
+    .stat-pill {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 12px 24px; text-align: center; min-width: 140px;
+    }
+    .stat-pill .number { font-size: 1.8rem; font-weight: 700; color: #f0f6fc; }
+    .stat-pill .label { font-size: 0.8rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Filter */
+    .filter-bar {
+      display: flex; justify-content: center; gap: 8px;
+      margin-bottom: 24px; flex-wrap: wrap;
+    }
+    .filter-btn {
+      background: #21262d; border: 1px solid #30363d; color: #8b949e;
+      padding: 6px 16px; border-radius: 20px; cursor: pointer;
+      font-size: 0.85rem; transition: all 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active {
+      color: #f0f6fc; border-color: #58a6ff; background: #1f2937;
+    }
+
+    /* Grid */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    /* Cards */
+    .dept-card {
+      background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+      padding: 20px; transition: transform 0.2s, border-color 0.2s;
+      cursor: pointer; display: flex; flex-direction: column; position: relative;
+      overflow: hidden;
+    }
+    .dept-card:hover {
+      transform: translateY(-3px); border-color: #58a6ff;
+    }
+    .dept-card .domain-stripe {
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    }
+    .dept-card .dept-name {
+      font-size: 1.1rem; font-weight: 600; color: #f0f6fc;
+      margin-bottom: 4px; margin-top: 4px;
+    }
+    .dept-card .head-persona {
+      font-size: 0.8rem; color: #8b949e; margin-bottom: 12px;
+    }
+    .dept-card .badge-new {
+      position: absolute; top: 12px; right: 12px;
+      background: #238636; color: #fff; font-size: 0.65rem;
+      padding: 2px 8px; border-radius: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    .metrics-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .metric {
+      background: #0d1117; border-radius: 6px; padding: 8px 10px;
+    }
+    .metric .val { font-size: 1.2rem; font-weight: 700; color: #f0f6fc; }
+    .metric .lbl { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; }
+
+    .health-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-top: auto; padding-top: 8px;
+      border-top: 1px solid #21262d;
+    }
+    .health-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+    }
+    .health-dot.fresh { background: #3fb950; box-shadow: 0 0 6px #3fb95088; }
+    .health-dot.stale { background: #f0883e; box-shadow: 0 0 6px #f0883e88; }
+    .health-label { font-size: 0.8rem; color: #8b949e; }
+
+    /* D3 tooltip */
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+      padding: 10px 14px; font-size: 0.8rem; color: #c9d1d9;
+      opacity: 0; transition: opacity 0.15s; z-index: 100;
+      max-width: 260px;
+    }
+
+    /* Bar chart */
+    .chart-section {
+      margin-top: 48px; padding-top: 32px;
+      border-top: 1px solid #30363d;
+    }
+    .chart-section h2 { font-size: 1.3rem; color: #f0f6fc; margin-bottom: 16px; text-align: center; }
+    #bar-chart { width: 100%; overflow-x: auto; }
+    #bar-chart svg text { fill: #c9d1d9; font-size: 12px; }
+
+    @media (max-width: 600px) {
+      .summary-bar { gap: 12px; }
+      .stat-pill { min-width: 100px; padding: 8px 12px; }
+      .stat-pill .number { font-size: 1.3rem; }
+      .card-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/" class="brand">Guitar Alchemist</a>
+    <div class="links">
+      <a href="/">Home</a>
+      <a href="../beliefs/">Belief State</a>
+      <a href="../roadmap/">Roadmap</a>
+      <a href="https://github.com/GuitarAlchemist" target="_blank">GitHub</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Streeling University Dashboard</h1>
+      <p>14 departments across 5 domains &mdash; autonomous curriculum generation via research grammars</p>
+    </div>
+
+    <div class="summary-bar" id="summary"></div>
+    <div class="filter-bar" id="filters"></div>
+    <div class="card-grid" id="cards"></div>
+
+    <div class="chart-section">
+      <h2>Research Areas by Department</h2>
+      <div id="bar-chart"></div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+<script>
+const DOMAIN_COLORS = {
+  music:       '#58a6ff',
+  science:     '#f85149',
+  humanities:  '#bc8cff',
+  governance:  '#3fb950',
+  applied:     '#39d2c0'
+};
+
+const departments = [
+  { name: 'music', head: 'theory-agent', areas: 6, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'music', isNew: false },
+  { name: 'guitar-studies', head: 'technique-agent', areas: 6, curriculum: 5, courses: 2, cycles: 2, health: 'fresh', domain: 'music', isNew: false },
+  { name: 'musicology', head: 'critical-theorist', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'humanities', isNew: false },
+  { name: 'mathematics', head: 'rational-administrator', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'science', isNew: false },
+  { name: 'physics', head: 'reflective-architect', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'science', isNew: false },
+  { name: 'computer-science', head: 'convolution-agent', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'science', isNew: false },
+  { name: 'product-management', head: 'communal-steward', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'governance', isNew: false },
+  { name: 'futurology', head: 'virtuous-leader', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'humanities', isNew: false },
+  { name: 'philosophy', head: 'critical-theorist', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'humanities', isNew: false },
+  { name: 'cognitive-science', head: 'validator-reflector', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'science', isNew: false },
+  { name: 'guitar-alchemist-academy', head: 'communal-steward', areas: 4, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'applied', isNew: false },
+  { name: 'world-music-languages', head: 'communal-steward', areas: 4, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'applied', isNew: false },
+  { name: 'psychohistory', head: 'seldon', areas: 5, curriculum: 5, courses: 1, cycles: 2, health: 'fresh', domain: 'governance', isNew: false },
+  { name: 'audio-engineering', head: 'system-integrator', areas: 8, curriculum: 15, courses: 1, cycles: 1, health: 'fresh', domain: 'applied', isNew: true }
+];
+
+const summaryStats = [
+  { number: 14, label: 'Departments' },
+  { number: 15, label: 'Courses' },
+  { number: 2,  label: 'Research Cycles' },
+  { number: 19, label: 'Grammars' }
+];
+
+const domainLabels = { music: 'Music', science: 'Science', humanities: 'Humanities', governance: 'Governance', applied: 'Applied' };
+
+// Summary pills
+d3.select('#summary')
+  .selectAll('.stat-pill')
+  .data(summaryStats)
+  .join('div')
+    .attr('class', 'stat-pill')
+    .html(d => `<div class="number">${d.number}</div><div class="label">${d.label}</div>`);
+
+// Filters
+const domains = ['all', ...Object.keys(domainLabels)];
+const filterBar = d3.select('#filters');
+filterBar.selectAll('.filter-btn')
+  .data(domains)
+  .join('button')
+    .attr('class', d => `filter-btn${d === 'all' ? ' active' : ''}`)
+    .text(d => d === 'all' ? 'All' : domainLabels[d])
+    .style('border-color', d => d !== 'all' ? DOMAIN_COLORS[d] : null)
+    .on('click', function(e, d) {
+      filterBar.selectAll('.filter-btn').classed('active', false);
+      d3.select(this).classed('active', true);
+      renderCards(d === 'all' ? departments : departments.filter(dep => dep.domain === d));
+    });
+
+const tooltip = d3.select('#tooltip');
+const ghBase = 'https://github.com/GuitarAlchemist/ga/tree/master/streeling/departments/';
+
+function renderCards(data) {
+  const grid = d3.select('#cards');
+  grid.selectAll('.dept-card').remove();
+
+  const cards = grid.selectAll('.dept-card')
+    .data(data, d => d.name)
+    .join('a')
+      .attr('class', 'dept-card')
+      .attr('href', d => ghBase + d.name)
+      .attr('target', '_blank')
+      .on('mouseenter', function(e, d) {
+        tooltip.style('opacity', 1)
+          .html(`<strong>${formatName(d.name)}</strong><br>Domain: ${domainLabels[d.domain]}<br>Head: ${d.head}<br>Click to view on GitHub`);
+      })
+      .on('mousemove', function(e) {
+        tooltip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 10) + 'px');
+      })
+      .on('mouseleave', () => tooltip.style('opacity', 0));
+
+  cards.append('div')
+    .attr('class', 'domain-stripe')
+    .style('background', d => DOMAIN_COLORS[d.domain]);
+
+  cards.filter(d => d.isNew).append('span').attr('class', 'badge-new').text('NEW');
+
+  cards.append('div').attr('class', 'dept-name').text(d => formatName(d.name));
+  cards.append('div').attr('class', 'head-persona').text(d => d.head);
+
+  const metrics = cards.append('div').attr('class', 'metrics-grid');
+  metrics.append('div').attr('class', 'metric')
+    .html(d => `<div class="val">${d.areas}</div><div class="lbl">Areas</div>`);
+  metrics.append('div').attr('class', 'metric')
+    .html(d => `<div class="val">${d.curriculum}</div><div class="lbl">Curriculum</div>`);
+  metrics.append('div').attr('class', 'metric')
+    .html(d => `<div class="val">${d.courses}</div><div class="lbl">Courses</div>`);
+  metrics.append('div').attr('class', 'metric')
+    .html(d => `<div class="val">${d.cycles}</div><div class="lbl">Cycles</div>`);
+
+  const hr = cards.append('div').attr('class', 'health-row');
+  hr.append('div').attr('class', d => `health-dot ${d.health}`);
+  hr.append('span').attr('class', 'health-label').text(d => `Grammar: ${d.health}`);
+}
+
+function formatName(n) {
+  return n.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+renderCards(departments);
+
+// Bar chart
+(function buildBarChart() {
+  const margin = { top: 20, right: 30, bottom: 90, left: 50 };
+  const fullW = Math.min(1232, window.innerWidth - 48);
+  const width = fullW - margin.left - margin.right;
+  const height = 320 - margin.top - margin.bottom;
+
+  const svg = d3.select('#bar-chart').append('svg')
+    .attr('viewBox', `0 0 ${fullW} 320`)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
+    .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleBand().domain(departments.map(d => d.name)).range([0, width]).padding(0.25);
+  const y = d3.scaleLinear().domain([0, d3.max(departments, d => d.areas) + 1]).range([height, 0]);
+
+  svg.append('g').attr('transform', `translate(0,${height})`)
+    .call(d3.axisBottom(x).tickSize(0))
+    .selectAll('text')
+      .attr('transform', 'rotate(-40)')
+      .style('text-anchor', 'end')
+      .text(d => formatName(d));
+
+  svg.append('g').call(d3.axisLeft(y).ticks(5))
+    .selectAll('line').attr('stroke', '#30363d');
+
+  svg.selectAll('.bar')
+    .data(departments)
+    .join('rect')
+      .attr('class', 'bar')
+      .attr('x', d => x(d.name))
+      .attr('width', x.bandwidth())
+      .attr('y', height)
+      .attr('height', 0)
+      .attr('rx', 3)
+      .attr('fill', d => DOMAIN_COLORS[d.domain])
+      .attr('opacity', 0.85)
+      .on('mouseenter', function(e, d) {
+        d3.select(this).attr('opacity', 1);
+        tooltip.style('opacity', 1)
+          .html(`<strong>${formatName(d.name)}</strong><br>${d.areas} research areas<br>${d.curriculum} curriculum items`);
+      })
+      .on('mousemove', function(e) {
+        tooltip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 10) + 'px');
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('opacity', 0.85);
+        tooltip.style('opacity', 0);
+      })
+      .transition().duration(600).delay((d, i) => i * 40)
+      .attr('y', d => y(d.areas))
+      .attr('height', d => height - y(d.areas));
+
+  // Grid lines
+  svg.selectAll('.grid-line')
+    .data(y.ticks(5))
+    .join('line')
+      .attr('x1', 0).attr('x2', width)
+      .attr('y1', d => y(d)).attr('y2', d => y(d))
+      .attr('stroke', '#30363d').attr('stroke-dasharray', '3,3')
+      .attr('opacity', 0.5);
+})();
+</script>
+</body>
+</html>

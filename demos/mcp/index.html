@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP Federation Graph — Tool Ecosystem</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; overflow: hidden; }
+
+    #container { width: 100vw; height: 100vh; position: relative; }
+    svg { display: block; }
+
+    /* Nav */
+    #nav {
+      position: absolute; top: 16px; left: 16px; z-index: 200;
+      display: flex; gap: 12px; align-items: center;
+    }
+    #nav a {
+      color: #58a6ff; text-decoration: none; font-size: 14px;
+      padding: 6px 14px; border: 1px solid #30363d; border-radius: 6px;
+      background: #161b22; transition: background 0.15s, border-color 0.15s;
+    }
+    #nav a:hover { background: #1f2937; border-color: #58a6ff; }
+
+    /* Title */
+    #title {
+      position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 200; text-align: center; pointer-events: none;
+    }
+    #title h1 { font-size: 20px; font-weight: 600; color: #e6edf3; }
+    #title p { font-size: 12px; color: #8b949e; margin-top: 2px; }
+
+    /* Tooltip */
+    .tooltip {
+      position: absolute; pointer-events: none; opacity: 0;
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 12px 16px; max-width: 320px; font-size: 13px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5); z-index: 300;
+      transition: opacity 0.15s;
+    }
+    .tooltip .tt-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+    .tooltip .tt-type { font-size: 11px; font-style: italic; margin-bottom: 6px; color: #8b949e; }
+    .tooltip .tt-desc { color: #8b949e; font-size: 12px; line-height: 1.4; }
+    .tooltip .tt-tools { color: #c9d1d9; font-size: 12px; margin-top: 6px; }
+    .tooltip .tt-link { color: #58a6ff; font-size: 11px; margin-top: 6px; display: block; }
+
+    /* Legend */
+    #legend {
+      position: absolute; bottom: 20px; left: 20px; z-index: 200;
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 14px 18px; font-size: 12px;
+    }
+    #legend h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #e6edf3; }
+    .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .legend-label { color: #c9d1d9; }
+
+    /* Size legend */
+    #size-legend {
+      position: absolute; bottom: 20px; right: 20px; z-index: 200;
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 14px 18px; font-size: 12px;
+    }
+    #size-legend h3 { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #e6edf3; }
+    .size-item { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .size-circle { border: 1.5px solid #8b949e; border-radius: 50%; flex-shrink: 0; }
+
+    /* Stats */
+    #stats {
+      position: absolute; top: 16px; right: 16px; z-index: 200;
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 10px 16px; font-size: 12px; color: #8b949e;
+    }
+    #stats span { color: #e6edf3; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <svg id="graph"></svg>
+  </div>
+
+  <div id="nav">
+    <a href="../../">Home</a>
+    <a href="../roadmap/">Roadmap</a>
+  </div>
+
+  <div id="title">
+    <h1>MCP Federation Graph</h1>
+    <p>Tool ecosystem across repos — drag nodes, scroll to zoom</p>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <div id="legend">
+    <h3>Repositories</h3>
+    <div class="legend-item"><div class="legend-dot" style="background:#bd93f9"></div><div class="legend-label">Demerzel (governance)</div></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#e06c75"></div><div class="legend-label">tars (F# reasoning)</div></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f0883e"></div><div class="legend-label">ix (Rust ML)</div></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#7289da"></div><div class="legend-label">ga (.NET music)</div></div>
+    <div class="legend-item"><div class="legend-dot" style="background:#56b6c2"></div><div class="legend-label">MCP Servers (external)</div></div>
+  </div>
+
+  <div id="size-legend">
+    <h3>Node Size</h3>
+    <div class="size-item"><div class="size-circle" style="width:28px;height:28px"></div><div class="legend-label">Repo hub</div></div>
+    <div class="size-item"><div class="size-circle" style="width:18px;height:18px"></div><div class="legend-label">Tool category</div></div>
+    <div class="size-item"><div class="size-circle" style="width:10px;height:10px"></div><div class="legend-label">Individual tool</div></div>
+  </div>
+
+  <div id="stats"></div>
+
+<script>
+// ── Data ──────────────────────────────────────────────────────────────
+const COLORS = {
+  demerzel: "#bd93f9",
+  tars: "#e06c75",
+  ix: "#f0883e",
+  ga: "#7289da",
+  mcp: "#56b6c2"
+};
+
+const GITHUB = "https://github.com/GuitarAlchemist";
+
+// Node types: repo (large), category (medium), tool (small)
+const nodes = [
+  // ── Repos ──
+  { id: "demerzel", label: "Demerzel", type: "repo", group: "demerzel", tools: 37, desc: "Governance hub — constitutions, personas, policies", url: `${GITHUB}/Demerzel` },
+  { id: "tars",     label: "tars",     type: "repo", group: "tars",     tools: 41, desc: "F# reasoning engine — grammars, beliefs, research cycles", url: `${GITHUB}/tars` },
+  { id: "ix",       label: "ix",       type: "repo", group: "ix",       tools: 23, desc: "Rust ML forge — pipelines, Markov models, dashboards", url: `${GITHUB}/ix` },
+  { id: "ga",       label: "ga",       type: "repo", group: "ga",       tools: 15, desc: ".NET Guitar Alchemist — theory, fretboard, composition", url: `${GITHUB}/ga` },
+
+  // ── Demerzel skills ──
+  { id: "d-skills", label: "Skills", type: "category", group: "demerzel", tools: 37, desc: "Governance commands — audit, directive, promote, evolve" },
+
+  // ── tars categories ──
+  { id: "t-grammar",    label: "Grammar",    type: "category", group: "tars", tools: 12, desc: "Parse, generate, validate, distill grammars" },
+  { id: "t-belief",     label: "Belief",     type: "category", group: "tars", tools: 8,  desc: "Assess, update, query, fuzzy belief states" },
+  { id: "t-research",   label: "Research",   type: "category", group: "tars", tools: 6,  desc: "Cycle, question, investigate research threads" },
+  { id: "t-governance", label: "Governance", type: "category", group: "tars", tools: 10, desc: "Audit, directive, promote governance artifacts" },
+  { id: "t-teaching",   label: "Teaching",   type: "category", group: "tars", tools: 5,  desc: "Teach, assess, deliver Streeling courses" },
+
+  // ── tars tools ──
+  { id: "t-parse",      label: "parse",      type: "tool", group: "tars", desc: "Parse grammar specifications" },
+  { id: "t-generate",   label: "generate",   type: "tool", group: "tars", desc: "Generate grammar instances" },
+  { id: "t-validate",   label: "validate",   type: "tool", group: "tars", desc: "Validate grammar conformance" },
+  { id: "t-distill",    label: "distill",    type: "tool", group: "tars", desc: "Distill grammar essentials" },
+  { id: "t-assess",     label: "assess",     type: "tool", group: "tars", desc: "Assess belief confidence" },
+  { id: "t-update",     label: "update",     type: "tool", group: "tars", desc: "Update belief states" },
+  { id: "t-query",      label: "query",      type: "tool", group: "tars", desc: "Query belief store" },
+  { id: "t-fuzzy",      label: "fuzzy",      type: "tool", group: "tars", desc: "Fuzzy belief matching" },
+  { id: "t-cycle",      label: "cycle",      type: "tool", group: "tars", desc: "Run research cycles" },
+  { id: "t-question",   label: "question",   type: "tool", group: "tars", desc: "Generate research questions" },
+  { id: "t-investigate",label: "investigate", type: "tool", group: "tars", desc: "Deep investigation threads" },
+  { id: "t-audit",      label: "audit",      type: "tool", group: "tars", desc: "Governance compliance audit" },
+  { id: "t-directive",  label: "directive",  type: "tool", group: "tars", desc: "Issue governance directives" },
+  { id: "t-promote",    label: "promote",    type: "tool", group: "tars", desc: "Promote artifacts across repos" },
+  { id: "t-teach",      label: "teach",      type: "tool", group: "tars", desc: "Deliver teaching content" },
+  { id: "t-deliver",    label: "deliver",    type: "tool", group: "tars", desc: "Package knowledge delivery" },
+
+  // ── ix categories ──
+  { id: "i-pipeline",   label: "ML Pipeline",  type: "category", group: "ix", tools: 8, desc: "Train, predict, evaluate, feature engineering" },
+  { id: "i-feedback",   label: "Gov Feedback",  type: "category", group: "ix", tools: 5, desc: "Violation patterns, remediation, anomaly detection" },
+  { id: "i-markov",     label: "Markov",        type: "category", group: "ix", tools: 6, desc: "Generate, sample, evolve, consolidate chains" },
+  { id: "i-dashboard",  label: "Dashboard",     type: "category", group: "ix", tools: 4, desc: "Health checks, metrics, reporting" },
+
+  // ── ix tools ──
+  { id: "i-train",      label: "train",      type: "tool", group: "ix", desc: "Train ML models" },
+  { id: "i-predict",    label: "predict",    type: "tool", group: "ix", desc: "Run model predictions" },
+  { id: "i-evaluate",   label: "evaluate",   type: "tool", group: "ix", desc: "Evaluate model performance" },
+  { id: "i-feature",    label: "feature",    type: "tool", group: "ix", desc: "Feature engineering pipeline" },
+  { id: "i-violation",  label: "violation",  type: "tool", group: "ix", desc: "Detect violation patterns" },
+  { id: "i-remediation",label: "remediation",type: "tool", group: "ix", desc: "Auto-remediation actions" },
+  { id: "i-anomaly",    label: "anomaly",    type: "tool", group: "ix", desc: "Anomaly detection" },
+  { id: "i-gen",        label: "generate",   type: "tool", group: "ix", desc: "Generate Markov sequences" },
+  { id: "i-sample",     label: "sample",     type: "tool", group: "ix", desc: "Sample from chain" },
+  { id: "i-evolve",     label: "evolve",     type: "tool", group: "ix", desc: "Evolve chain parameters" },
+  { id: "i-consolidate",label: "consolidate",type: "tool", group: "ix", desc: "Consolidate chain states" },
+  { id: "i-health",     label: "health",     type: "tool", group: "ix", desc: "System health check" },
+  { id: "i-metrics",    label: "metrics",    type: "tool", group: "ix", desc: "Metrics dashboard" },
+  { id: "i-report",     label: "report",     type: "tool", group: "ix", desc: "Generate reports" },
+
+  // ── ga categories ──
+  { id: "g-theory",      label: "Theory",      type: "category", group: "ga", tools: 5, desc: "Scales, chords, intervals, modes" },
+  { id: "g-fretboard",   label: "Fretboard",   type: "category", group: "ga", tools: 4, desc: "Navigate, visualize, voice fretboard" },
+  { id: "g-composition", label: "Composition", type: "category", group: "ga", tools: 3, desc: "Suggest, arrange, harmonize" },
+  { id: "g-practice",    label: "Practice",    type: "category", group: "ga", tools: 3, desc: "Routine, drill, progress tracking" },
+
+  // ── ga tools ──
+  { id: "g-scales",    label: "scales",    type: "tool", group: "ga", desc: "Scale lookup and generation" },
+  { id: "g-chords",    label: "chords",    type: "tool", group: "ga", desc: "Chord voicing and analysis" },
+  { id: "g-intervals", label: "intervals", type: "tool", group: "ga", desc: "Interval recognition" },
+  { id: "g-modes",     label: "modes",     type: "tool", group: "ga", desc: "Modal exploration" },
+  { id: "g-navigate",  label: "navigate",  type: "tool", group: "ga", desc: "Fretboard navigation" },
+  { id: "g-visualize", label: "visualize", type: "tool", group: "ga", desc: "Fretboard visualization" },
+  { id: "g-voice",     label: "voice",     type: "tool", group: "ga", desc: "Voice leading analysis" },
+  { id: "g-suggest",   label: "suggest",   type: "tool", group: "ga", desc: "Composition suggestions" },
+  { id: "g-arrange",   label: "arrange",   type: "tool", group: "ga", desc: "Arrangement tools" },
+  { id: "g-harmonize", label: "harmonize", type: "tool", group: "ga", desc: "Harmonization engine" },
+  { id: "g-routine",   label: "routine",   type: "tool", group: "ga", desc: "Practice routine builder" },
+  { id: "g-drill",     label: "drill",     type: "tool", group: "ga", desc: "Skill drills" },
+  { id: "g-track",     label: "track",     type: "tool", group: "ga", desc: "Progress tracking" },
+
+  // ── MCP Servers ──
+  { id: "mcp-hub",      label: "MCP Servers",  type: "repo",     group: "mcp", tools: 27, desc: "External MCP server integrations" },
+  { id: "m-notebooklm", label: "NotebookLM",   type: "category", group: "mcp", tools: 4,  desc: "Query, add, search notebooks" },
+  { id: "m-openai",     label: "OpenAI Chat",  type: "category", group: "mcp", tools: 1,  desc: "Cross-model validation" },
+  { id: "m-windows",    label: "Windows MCP",  type: "category", group: "mcp", tools: 15, desc: "Desktop automation tools" },
+  { id: "m-context7",   label: "Context7",     type: "category", group: "mcp", tools: 2,  desc: "Documentation lookup" },
+  { id: "m-discord",    label: "Discord",      type: "category", group: "mcp", tools: 5,  desc: "Messaging and reactions" },
+];
+
+const links = [
+  // ── Repo-to-repo ──
+  { source: "demerzel", target: "tars",  label: "directives",           type: "governance" },
+  { source: "demerzel", target: "ix",    label: "ML feedback",          type: "governance" },
+  { source: "demerzel", target: "ga",    label: "governance scaffolding", type: "governance" },
+  { source: "tars",     target: "ix",    label: "grammar → ML pipeline", type: "cross" },
+  { source: "tars",     target: "ga",    label: "reasoning → music",     type: "cross" },
+
+  // ── Repos → MCP servers ──
+  { source: "demerzel", target: "mcp-hub", label: "tool consumption", type: "mcp" },
+  { source: "tars",     target: "mcp-hub", label: "tool consumption", type: "mcp" },
+  { source: "ix",       target: "mcp-hub", label: "tool consumption", type: "mcp" },
+  { source: "ga",       target: "mcp-hub", label: "tool consumption", type: "mcp" },
+
+  // ── Demerzel → skills ──
+  { source: "demerzel", target: "d-skills", type: "contains" },
+
+  // ── tars → categories → tools ──
+  { source: "tars", target: "t-grammar",    type: "contains" },
+  { source: "tars", target: "t-belief",     type: "contains" },
+  { source: "tars", target: "t-research",   type: "contains" },
+  { source: "tars", target: "t-governance", type: "contains" },
+  { source: "tars", target: "t-teaching",   type: "contains" },
+  { source: "t-grammar",    target: "t-parse",      type: "has-tool" },
+  { source: "t-grammar",    target: "t-generate",   type: "has-tool" },
+  { source: "t-grammar",    target: "t-validate",   type: "has-tool" },
+  { source: "t-grammar",    target: "t-distill",    type: "has-tool" },
+  { source: "t-belief",     target: "t-assess",     type: "has-tool" },
+  { source: "t-belief",     target: "t-update",     type: "has-tool" },
+  { source: "t-belief",     target: "t-query",      type: "has-tool" },
+  { source: "t-belief",     target: "t-fuzzy",      type: "has-tool" },
+  { source: "t-research",   target: "t-cycle",      type: "has-tool" },
+  { source: "t-research",   target: "t-question",   type: "has-tool" },
+  { source: "t-research",   target: "t-investigate",type: "has-tool" },
+  { source: "t-governance", target: "t-audit",      type: "has-tool" },
+  { source: "t-governance", target: "t-directive",  type: "has-tool" },
+  { source: "t-governance", target: "t-promote",    type: "has-tool" },
+  { source: "t-teaching",   target: "t-teach",      type: "has-tool" },
+  { source: "t-teaching",   target: "t-deliver",    type: "has-tool" },
+
+  // ── ix → categories → tools ──
+  { source: "ix", target: "i-pipeline",  type: "contains" },
+  { source: "ix", target: "i-feedback",  type: "contains" },
+  { source: "ix", target: "i-markov",    type: "contains" },
+  { source: "ix", target: "i-dashboard", type: "contains" },
+  { source: "i-pipeline",  target: "i-train",      type: "has-tool" },
+  { source: "i-pipeline",  target: "i-predict",    type: "has-tool" },
+  { source: "i-pipeline",  target: "i-evaluate",   type: "has-tool" },
+  { source: "i-pipeline",  target: "i-feature",    type: "has-tool" },
+  { source: "i-feedback",  target: "i-violation",  type: "has-tool" },
+  { source: "i-feedback",  target: "i-remediation",type: "has-tool" },
+  { source: "i-feedback",  target: "i-anomaly",    type: "has-tool" },
+  { source: "i-markov",    target: "i-gen",        type: "has-tool" },
+  { source: "i-markov",    target: "i-sample",     type: "has-tool" },
+  { source: "i-markov",    target: "i-evolve",     type: "has-tool" },
+  { source: "i-markov",    target: "i-consolidate",type: "has-tool" },
+  { source: "i-dashboard", target: "i-health",     type: "has-tool" },
+  { source: "i-dashboard", target: "i-metrics",    type: "has-tool" },
+  { source: "i-dashboard", target: "i-report",     type: "has-tool" },
+
+  // ── ga → categories → tools ──
+  { source: "ga", target: "g-theory",      type: "contains" },
+  { source: "ga", target: "g-fretboard",   type: "contains" },
+  { source: "ga", target: "g-composition", type: "contains" },
+  { source: "ga", target: "g-practice",    type: "contains" },
+  { source: "g-theory",      target: "g-scales",    type: "has-tool" },
+  { source: "g-theory",      target: "g-chords",    type: "has-tool" },
+  { source: "g-theory",      target: "g-intervals", type: "has-tool" },
+  { source: "g-theory",      target: "g-modes",     type: "has-tool" },
+  { source: "g-fretboard",   target: "g-navigate",  type: "has-tool" },
+  { source: "g-fretboard",   target: "g-visualize", type: "has-tool" },
+  { source: "g-fretboard",   target: "g-voice",     type: "has-tool" },
+  { source: "g-composition", target: "g-suggest",   type: "has-tool" },
+  { source: "g-composition", target: "g-arrange",   type: "has-tool" },
+  { source: "g-composition", target: "g-harmonize", type: "has-tool" },
+  { source: "g-practice",    target: "g-routine",   type: "has-tool" },
+  { source: "g-practice",    target: "g-drill",     type: "has-tool" },
+  { source: "g-practice",    target: "g-track",     type: "has-tool" },
+
+  // ── MCP hub → servers ──
+  { source: "mcp-hub", target: "m-notebooklm", type: "contains" },
+  { source: "mcp-hub", target: "m-openai",     type: "contains" },
+  { source: "mcp-hub", target: "m-windows",    type: "contains" },
+  { source: "mcp-hub", target: "m-context7",   type: "contains" },
+  { source: "mcp-hub", target: "m-discord",    type: "contains" },
+];
+
+// ── Sizing ──
+function nodeRadius(d) {
+  if (d.type === "repo") return 28;
+  if (d.type === "category") return 14;
+  return 6;
+}
+
+function nodeColor(d) {
+  return COLORS[d.group] || "#8b949e";
+}
+
+// ── Stats ──
+const totalTools = nodes.filter(n => n.type === "repo" && n.tools).reduce((s, n) => s + n.tools, 0);
+const repoCount = nodes.filter(n => n.type === "repo").length;
+const catCount = nodes.filter(n => n.type === "category").length;
+document.getElementById("stats").innerHTML =
+  `<span>${totalTools}</span> tools across <span>${repoCount}</span> repos, <span>${catCount}</span> categories`;
+
+// ── SVG setup ──
+const width = window.innerWidth;
+const height = window.innerHeight;
+
+const svg = d3.select("#graph")
+  .attr("width", width)
+  .attr("height", height);
+
+const g = svg.append("g");
+
+// Zoom
+const zoom = d3.zoom()
+  .scaleExtent([0.2, 4])
+  .on("zoom", (e) => g.attr("transform", e.transform));
+
+svg.call(zoom);
+
+// ── Arrow markers ──
+const defs = svg.append("defs");
+["governance", "cross", "mcp", "contains", "has-tool"].forEach(type => {
+  const color = type === "governance" ? "#bd93f9"
+    : type === "cross" ? "#e6edf3"
+    : type === "mcp" ? "#56b6c2"
+    : "#30363d";
+  defs.append("marker")
+    .attr("id", `arrow-${type}`)
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 20)
+    .attr("refY", 0)
+    .attr("markerWidth", 6)
+    .attr("markerHeight", 6)
+    .attr("orient", "auto")
+    .append("path")
+    .attr("fill", color)
+    .attr("d", "M0,-5L10,0L0,5");
+});
+
+// ── Force simulation ──
+const simulation = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(links).id(d => d.id).distance(d => {
+    if (d.type === "has-tool") return 40;
+    if (d.type === "contains") return 70;
+    if (d.type === "governance" || d.type === "cross") return 200;
+    return 160;
+  }).strength(d => {
+    if (d.type === "has-tool") return 1.2;
+    if (d.type === "contains") return 0.8;
+    return 0.3;
+  }))
+  .force("charge", d3.forceManyBody().strength(d => {
+    if (d.type === "repo") return -600;
+    if (d.type === "category") return -150;
+    return -40;
+  }))
+  .force("center", d3.forceCenter(width / 2, height / 2))
+  .force("collision", d3.forceCollide().radius(d => nodeRadius(d) + 4));
+
+// ── Links ──
+const link = g.append("g")
+  .selectAll("line")
+  .data(links)
+  .join("line")
+  .attr("stroke", d => {
+    if (d.type === "governance") return "#bd93f9";
+    if (d.type === "cross") return "#e6edf3";
+    if (d.type === "mcp") return "#56b6c2";
+    return "#21262d";
+  })
+  .attr("stroke-opacity", d => {
+    if (d.type === "has-tool") return 0.25;
+    if (d.type === "contains") return 0.4;
+    return 0.6;
+  })
+  .attr("stroke-width", d => {
+    if (d.type === "governance" || d.type === "cross") return 2;
+    if (d.type === "mcp") return 1.5;
+    return 1;
+  })
+  .attr("stroke-dasharray", d => d.type === "mcp" ? "4,3" : null)
+  .attr("marker-end", d => (d.type === "governance" || d.type === "cross" || d.type === "mcp") ? `url(#arrow-${d.type})` : null);
+
+// ── Edge labels for repo-to-repo links ──
+const edgeLabels = g.append("g")
+  .selectAll("text")
+  .data(links.filter(d => d.label))
+  .join("text")
+  .attr("font-size", 10)
+  .attr("fill", "#484f58")
+  .attr("text-anchor", "middle")
+  .attr("dy", -6)
+  .text(d => d.label);
+
+// ── Nodes ──
+const node = g.append("g")
+  .selectAll("g")
+  .data(nodes)
+  .join("g")
+  .attr("cursor", d => d.url ? "pointer" : "grab")
+  .call(d3.drag()
+    .on("start", dragstarted)
+    .on("drag", dragged)
+    .on("end", dragended));
+
+// Glow for repos
+node.filter(d => d.type === "repo")
+  .append("circle")
+  .attr("r", d => nodeRadius(d) + 8)
+  .attr("fill", d => nodeColor(d))
+  .attr("opacity", 0.08);
+
+// Main circle
+node.append("circle")
+  .attr("r", d => nodeRadius(d))
+  .attr("fill", d => nodeColor(d))
+  .attr("stroke", d => d.type === "repo" ? d3.color(nodeColor(d)).brighter(0.5) : "#21262d")
+  .attr("stroke-width", d => d.type === "repo" ? 2.5 : d.type === "category" ? 1.5 : 0.5)
+  .attr("opacity", d => d.type === "tool" ? 0.75 : 1);
+
+// Labels
+node.filter(d => d.type !== "tool")
+  .append("text")
+  .attr("dy", d => nodeRadius(d) + 14)
+  .attr("text-anchor", "middle")
+  .attr("font-size", d => d.type === "repo" ? 13 : 11)
+  .attr("font-weight", d => d.type === "repo" ? 600 : 400)
+  .attr("fill", d => d.type === "repo" ? "#e6edf3" : "#8b949e")
+  .text(d => d.label);
+
+// Tool count badges on categories
+node.filter(d => d.type === "category" && d.tools)
+  .append("text")
+  .attr("text-anchor", "middle")
+  .attr("dy", 4)
+  .attr("font-size", 9)
+  .attr("font-weight", 700)
+  .attr("fill", "#0d1117")
+  .text(d => d.tools);
+
+// Repo icons (letter in center)
+node.filter(d => d.type === "repo")
+  .append("text")
+  .attr("text-anchor", "middle")
+  .attr("dy", 7)
+  .attr("font-size", 18)
+  .attr("font-weight", 700)
+  .attr("fill", "#0d1117")
+  .text(d => d.label[0].toUpperCase());
+
+// ── Tooltip ──
+const tooltip = d3.select("#tooltip");
+
+node.on("mouseover", (event, d) => {
+  let html = `<div class="tt-title" style="color:${nodeColor(d)}">${d.label}</div>`;
+  html += `<div class="tt-type">${d.type === "repo" ? "Repository" : d.type === "category" ? "Tool Category" : "Tool"}</div>`;
+  html += `<div class="tt-desc">${d.desc || ""}</div>`;
+  if (d.tools) html += `<div class="tt-tools">${d.tools} tools</div>`;
+  if (d.url) html += `<div class="tt-link">Click to open on GitHub</div>`;
+  tooltip.html(html).style("opacity", 1);
+})
+.on("mousemove", (event) => {
+  tooltip
+    .style("left", (event.pageX + 16) + "px")
+    .style("top", (event.pageY - 16) + "px");
+})
+.on("mouseout", () => {
+  tooltip.style("opacity", 0);
+});
+
+// ── Click → GitHub ──
+node.on("click", (event, d) => {
+  if (d.url) window.open(d.url, "_blank");
+});
+
+// ── Simulation tick ──
+simulation.on("tick", () => {
+  link
+    .attr("x1", d => d.source.x)
+    .attr("y1", d => d.source.y)
+    .attr("x2", d => d.target.x)
+    .attr("y2", d => d.target.y);
+
+  edgeLabels
+    .attr("x", d => (d.source.x + d.target.x) / 2)
+    .attr("y", d => (d.source.y + d.target.y) / 2);
+
+  node.attr("transform", d => `translate(${d.x},${d.y})`);
+});
+
+// ── Drag ──
+function dragstarted(event, d) {
+  if (!event.active) simulation.alphaTarget(0.3).restart();
+  d.fx = d.x;
+  d.fy = d.y;
+}
+function dragged(event, d) {
+  d.fx = event.x;
+  d.fy = event.y;
+}
+function dragended(event, d) {
+  if (!event.active) simulation.alphaTarget(0);
+  d.fx = null;
+  d.fy = null;
+}
+
+// ── Resize ──
+window.addEventListener("resize", () => {
+  const w = window.innerWidth, h = window.innerHeight;
+  svg.attr("width", w).attr("height", h);
+  simulation.force("center", d3.forceCenter(w / 2, h / 2));
+  simulation.alpha(0.3).restart();
+});
+</script>
+</body>
+</html>

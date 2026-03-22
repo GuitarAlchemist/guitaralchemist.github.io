@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Belief State Dashboard — Guitar Alchemist</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0d1117; color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+    }
+    a { color: #58a6ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    nav {
+      background: #161b22; border-bottom: 1px solid #30363d;
+      padding: 12px 24px; display: flex; align-items: center; gap: 24px;
+    }
+    nav .brand { font-weight: 700; font-size: 1.1rem; color: #f0f6fc; }
+    nav .links { display: flex; gap: 16px; margin-left: auto; }
+    nav .links a { color: #8b949e; font-size: 0.9rem; }
+    nav .links a:hover { color: #c9d1d9; }
+
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+
+    .page-header {
+      text-align: center; margin-bottom: 32px;
+      padding-bottom: 24px; border-bottom: 1px solid #30363d;
+    }
+    .page-header h1 { font-size: 2rem; color: #f0f6fc; margin-bottom: 8px; }
+    .page-header p { color: #8b949e; font-size: 1rem; }
+
+    /* Summary row */
+    .summary-row {
+      display: flex; justify-content: center; gap: 24px;
+      margin-bottom: 32px; flex-wrap: wrap;
+    }
+    .sum-card {
+      background: #161b22; border: 1px solid #30363d; border-radius: 10px;
+      padding: 16px 28px; text-align: center; min-width: 130px;
+    }
+    .sum-card .num { font-size: 2rem; font-weight: 700; color: #f0f6fc; }
+    .sum-card .lbl { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Two-column layout */
+    .dashboard {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    @media (max-width: 768px) {
+      .dashboard { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+      padding: 24px;
+    }
+    .panel h2 {
+      font-size: 1.1rem; color: #f0f6fc; margin-bottom: 16px;
+      padding-bottom: 8px; border-bottom: 1px solid #21262d;
+    }
+    .panel.full-width { grid-column: 1 / -1; }
+
+    /* Belief list */
+    .belief-item {
+      padding: 12px 0; border-bottom: 1px solid #21262d;
+    }
+    .belief-item:last-child { border-bottom: none; }
+    .belief-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 4px;
+    }
+    .tv-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 12px;
+      font-size: 0.75rem; font-weight: 700; letter-spacing: 0.5px;
+    }
+    .tv-T { background: #238636; color: #fff; }
+    .tv-F { background: #da3633; color: #fff; }
+    .tv-U { background: #d29922; color: #fff; }
+    .tv-C { background: #8957e5; color: #fff; }
+    .belief-name { font-weight: 600; color: #f0f6fc; }
+    .belief-desc { font-size: 0.85rem; color: #8b949e; }
+    .belief-warning { color: #d29922; font-size: 0.8rem; }
+
+    /* Confidence bar inline */
+    .conf-bar-wrap {
+      margin-top: 6px; display: flex; align-items: center; gap: 10px;
+    }
+    .conf-bar-bg {
+      flex: 1; height: 8px; background: #21262d; border-radius: 4px; overflow: hidden;
+    }
+    .conf-bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+    .conf-val { font-size: 0.8rem; color: #8b949e; min-width: 36px; }
+
+    /* Archived */
+    .archived-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 0; color: #484f58; font-size: 0.9rem;
+    }
+    .archived-item .strike { text-decoration: line-through; }
+    .archived-tag {
+      font-size: 0.65rem; background: #21262d; color: #8b949e;
+      padding: 2px 8px; border-radius: 10px;
+    }
+
+    /* Gauge */
+    #gauge-container { display: flex; justify-content: center; padding: 16px 0; }
+
+    /* Conscience stats */
+    .conscience-stats {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+      margin-top: 16px;
+    }
+    .cs-item {
+      background: #0d1117; border-radius: 8px; padding: 12px; text-align: center;
+    }
+    .cs-item .val { font-size: 1.4rem; font-weight: 700; color: #f0f6fc; }
+    .cs-item .lbl { font-size: 0.7rem; color: #8b949e; text-transform: uppercase; }
+
+    /* Timeline */
+    #timeline-chart { width: 100%; overflow-x: auto; }
+    #timeline-chart svg text { fill: #c9d1d9; }
+
+    /* Bar chart */
+    #confidence-chart { width: 100%; }
+    #confidence-chart svg text { fill: #c9d1d9; }
+
+    .tooltip {
+      position: fixed; pointer-events: none;
+      background: #1c2128; border: 1px solid #30363d; border-radius: 8px;
+      padding: 10px 14px; font-size: 0.8rem; color: #c9d1d9;
+      opacity: 0; transition: opacity 0.15s; z-index: 100;
+      max-width: 300px;
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/" class="brand">Guitar Alchemist</a>
+    <div class="links">
+      <a href="/">Home</a>
+      <a href="../streeling/">Streeling University</a>
+      <a href="../roadmap/">Roadmap</a>
+      <a href="https://github.com/GuitarAlchemist" target="_blank">GitHub</a>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <h1>Belief State Dashboard</h1>
+      <p>Demerzel governance belief system &mdash; tetravalent truth values with confidence tracking</p>
+    </div>
+
+    <div class="summary-row" id="summary"></div>
+
+    <div class="dashboard">
+      <!-- Active Beliefs -->
+      <div class="panel">
+        <h2>Active Beliefs</h2>
+        <div id="active-beliefs"></div>
+      </div>
+
+      <!-- Conscience Health -->
+      <div class="panel">
+        <h2>Conscience Health</h2>
+        <div id="gauge-container"></div>
+        <div class="conscience-stats" id="conscience-stats"></div>
+      </div>
+
+      <!-- Confidence Chart -->
+      <div class="panel">
+        <h2>Belief Confidence Levels</h2>
+        <div id="confidence-chart"></div>
+      </div>
+
+      <!-- Archived Beliefs -->
+      <div class="panel">
+        <h2>Archived Beliefs</h2>
+        <div id="archived-beliefs"></div>
+      </div>
+
+      <!-- Timeline -->
+      <div class="panel full-width">
+        <h2>Belief Lifecycle Timeline</h2>
+        <div id="timeline-chart"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+<script>
+const TV_COLORS = { T: '#238636', F: '#da3633', U: '#d29922', C: '#8957e5' };
+
+const activeBeliefs = [
+  { id: 'framework-integrity', name: 'Framework Integrity', tv: 'T', confidence: 0.98,
+    desc: 'Demerzel governance framework structurally complete', warning: null,
+    created: '2026-03-14', updated: '2026-03-22' },
+  { id: 'behavioral-test-coverage', name: 'Behavioral Test Coverage', tv: 'T', confidence: 0.80,
+    desc: 'All personas have behavioral tests', warning: 'Expanded set untested',
+    created: '2026-03-14', updated: '2026-03-22' },
+  { id: 'consumer-repo-integration', name: 'Consumer Repo Integration', tv: 'T', confidence: 0.90,
+    desc: 'All 3 repos have governance on main', warning: null,
+    created: '2026-03-17', updated: '2026-03-22' }
+];
+
+const archivedBeliefs = [
+  { name: 'Consumer directives 03-17', reason: 'superseded', date: '2026-03-17' },
+  { name: 'ix integration 03-17', reason: 'superseded', date: '2026-03-17' },
+  { name: 'tars integration 03-17', reason: 'superseded', date: '2026-03-17' },
+  { name: 'ga integration 03-17', reason: 'superseded', date: '2026-03-17' }
+];
+
+const conscienceData = {
+  signals: { fired: 5, resolved: 4, addressed: 1 },
+  regrets: { total: 1, resolved: 1 },
+  assessment: 'maturing',
+  sensitivity: 'resolution-dominant cycle',
+  stages: ['nascent', 'maturing', 'mature', 'evolved'],
+  currentStage: 1
+};
+
+const tooltip = d3.select('#tooltip');
+
+// Summary
+const summaryItems = [
+  { num: activeBeliefs.length, lbl: 'Active Beliefs' },
+  { num: archivedBeliefs.length, lbl: 'Archived' },
+  { num: conscienceData.signals.fired, lbl: 'Signals Fired' },
+  { num: `${conscienceData.signals.resolved}/${conscienceData.signals.fired}`, lbl: 'Resolved' }
+];
+d3.select('#summary').selectAll('.sum-card').data(summaryItems).join('div')
+  .attr('class', 'sum-card')
+  .html(d => `<div class="num">${d.num}</div><div class="lbl">${d.lbl}</div>`);
+
+// Active beliefs list
+const abContainer = d3.select('#active-beliefs');
+activeBeliefs.forEach(b => {
+  const item = abContainer.append('div').attr('class', 'belief-item');
+  const header = item.append('div').attr('class', 'belief-header');
+  header.append('span').attr('class', `tv-badge tv-${b.tv}`).text(b.tv);
+  header.append('span').attr('class', 'belief-name').text(b.name);
+  item.append('div').attr('class', 'belief-desc').text(b.desc);
+  if (b.warning) {
+    item.append('div').attr('class', 'belief-warning').text('Warning: ' + b.warning);
+  }
+  const bar = item.append('div').attr('class', 'conf-bar-wrap');
+  const bg = bar.append('div').attr('class', 'conf-bar-bg');
+  bg.append('div').attr('class', 'conf-bar-fill')
+    .style('width', '0%')
+    .style('background', TV_COLORS[b.tv])
+    .transition().duration(800).delay(200)
+    .style('width', (b.confidence * 100) + '%');
+  bar.append('span').attr('class', 'conf-val').text((b.confidence * 100).toFixed(0) + '%');
+});
+
+// Archived beliefs
+const archContainer = d3.select('#archived-beliefs');
+archivedBeliefs.forEach(b => {
+  const item = archContainer.append('div').attr('class', 'archived-item');
+  item.append('span').attr('class', 'strike').text(b.name);
+  item.append('span').attr('class', 'archived-tag').text(b.reason);
+});
+
+// Conscience gauge
+(function buildGauge() {
+  const w = 240, h = 140;
+  const svg = d3.select('#gauge-container').append('svg')
+    .attr('viewBox', `0 0 ${w} ${h}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
+    .style('max-width', w + 'px');
+
+  const cx = w / 2, cy = h - 20, r = 90;
+  const stages = conscienceData.stages;
+  const stageColors = ['#484f58', '#d29922', '#3fb950', '#58a6ff'];
+  const arcGen = d3.arc();
+
+  // Background arcs
+  stages.forEach((s, i) => {
+    const startAngle = -Math.PI / 2 + (i * Math.PI / stages.length);
+    const endAngle = -Math.PI / 2 + ((i + 1) * Math.PI / stages.length);
+    svg.append('path')
+      .attr('d', arcGen({ innerRadius: r - 18, outerRadius: r, startAngle, endAngle }))
+      .attr('transform', `translate(${cx},${cy})`)
+      .attr('fill', i <= conscienceData.currentStage ? stageColors[i] : '#21262d')
+      .attr('opacity', i <= conscienceData.currentStage ? 0.9 : 0.4)
+      .attr('stroke', '#0d1117').attr('stroke-width', 2);
+  });
+
+  // Labels
+  stages.forEach((s, i) => {
+    const angle = -Math.PI / 2 + ((i + 0.5) * Math.PI / stages.length);
+    const lx = cx + (r + 16) * Math.cos(angle);
+    const ly = cy + (r + 16) * Math.sin(angle);
+    svg.append('text')
+      .attr('x', lx).attr('y', ly)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '9px')
+      .attr('fill', i === conscienceData.currentStage ? '#f0f6fc' : '#484f58')
+      .attr('font-weight', i === conscienceData.currentStage ? '700' : '400')
+      .text(s);
+  });
+
+  // Needle
+  const needleAngle = -Math.PI / 2 + ((conscienceData.currentStage + 0.5) * Math.PI / stages.length);
+  const nx = cx + (r - 30) * Math.cos(needleAngle);
+  const ny = cy + (r - 30) * Math.sin(needleAngle);
+  svg.append('line')
+    .attr('x1', cx).attr('y1', cy).attr('x2', nx).attr('y2', ny)
+    .attr('stroke', '#f0f6fc').attr('stroke-width', 2.5)
+    .attr('stroke-linecap', 'round');
+  svg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 5).attr('fill', '#f0f6fc');
+
+  // Center label
+  svg.append('text')
+    .attr('x', cx).attr('y', cy + 24)
+    .attr('text-anchor', 'middle')
+    .attr('font-size', '13px').attr('font-weight', '700').attr('fill', '#d29922')
+    .text('MATURING');
+})();
+
+// Conscience stats
+const csItems = [
+  { val: '5', lbl: 'Signals Fired' },
+  { val: '4', lbl: 'Fully Resolved' },
+  { val: '1', lbl: 'Addressed' },
+  { val: '1/1', lbl: 'Regrets Resolved' }
+];
+d3.select('#conscience-stats').selectAll('.cs-item').data(csItems).join('div')
+  .attr('class', 'cs-item')
+  .html(d => `<div class="val">${d.val}</div><div class="lbl">${d.lbl}</div>`);
+
+// Confidence bar chart (horizontal)
+(function buildConfChart() {
+  const margin = { top: 10, right: 50, bottom: 10, left: 160 };
+  const barH = 32, gap = 12;
+  const h = activeBeliefs.length * (barH + gap) + margin.top + margin.bottom;
+  const fullW = 500;
+  const w = fullW - margin.left - margin.right;
+
+  const svg = d3.select('#confidence-chart').append('svg')
+    .attr('viewBox', `0 0 ${fullW} ${h}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
+    .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const x = d3.scaleLinear().domain([0, 1]).range([0, w]);
+
+  // Threshold lines
+  [0.3, 0.5, 0.7, 0.9].forEach(t => {
+    svg.append('line')
+      .attr('x1', x(t)).attr('x2', x(t))
+      .attr('y1', -5).attr('y2', activeBeliefs.length * (barH + gap))
+      .attr('stroke', '#30363d').attr('stroke-dasharray', '3,3');
+    svg.append('text')
+      .attr('x', x(t)).attr('y', -8)
+      .attr('text-anchor', 'middle').attr('font-size', '9px').attr('fill', '#484f58')
+      .text(t);
+  });
+
+  activeBeliefs.forEach((b, i) => {
+    const y = i * (barH + gap);
+
+    // Label
+    svg.append('text')
+      .attr('x', -8).attr('y', y + barH / 2 + 4)
+      .attr('text-anchor', 'end').attr('font-size', '12px').attr('fill', '#c9d1d9')
+      .text(b.name);
+
+    // Background
+    svg.append('rect')
+      .attr('x', 0).attr('y', y)
+      .attr('width', w).attr('height', barH)
+      .attr('rx', 4).attr('fill', '#21262d');
+
+    // Fill
+    svg.append('rect')
+      .attr('x', 0).attr('y', y)
+      .attr('width', 0).attr('height', barH)
+      .attr('rx', 4).attr('fill', TV_COLORS[b.tv]).attr('opacity', 0.8)
+      .on('mouseenter', function(e) {
+        d3.select(this).attr('opacity', 1);
+        tooltip.style('opacity', 1)
+          .html(`<strong>${b.name}</strong><br>Value: ${b.tv} (${(b.confidence*100).toFixed(0)}%)<br>${b.desc}`);
+      })
+      .on('mousemove', function(e) {
+        tooltip.style('left', (e.clientX + 14) + 'px').style('top', (e.clientY - 10) + 'px');
+      })
+      .on('mouseleave', function() {
+        d3.select(this).attr('opacity', 0.8);
+        tooltip.style('opacity', 0);
+      })
+      .transition().duration(800).delay(i * 150)
+      .attr('width', x(b.confidence));
+
+    // Value label
+    svg.append('text')
+      .attr('x', x(b.confidence) + 8).attr('y', y + barH / 2 + 4)
+      .attr('font-size', '12px').attr('font-weight', '700').attr('fill', '#f0f6fc')
+      .attr('opacity', 0)
+      .transition().delay(800 + i * 150).attr('opacity', 1)
+      .text((b.confidence * 100).toFixed(0) + '%');
+  });
+})();
+
+// Timeline
+(function buildTimeline() {
+  const allEvents = [];
+  activeBeliefs.forEach(b => {
+    allEvents.push({ name: b.name, date: b.created, type: 'created', tv: b.tv });
+    if (b.updated !== b.created) {
+      allEvents.push({ name: b.name, date: b.updated, type: 'updated', tv: b.tv });
+    }
+  });
+  archivedBeliefs.forEach(b => {
+    allEvents.push({ name: b.name, date: b.date, type: 'created', tv: 'T' });
+    allEvents.push({ name: b.name, date: b.date, type: 'archived', tv: 'F' });
+  });
+
+  const parseDate = d3.timeParse('%Y-%m-%d');
+  allEvents.forEach(e => e.dateObj = parseDate(e.date));
+
+  const margin = { top: 20, right: 30, bottom: 40, left: 30 };
+  const fullW = 1052, fullH = 200;
+  const w = fullW - margin.left - margin.right;
+  const h = fullH - margin.top - margin.bottom;
+
+  const svg = d3.select('#timeline-chart').append('svg')
+    .attr('viewBox', `0 0 ${fullW} ${fullH}`)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
+    .append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const xScale = d3.scaleTime()
+    .domain([parseDate('2026-03-13'), parseDate('2026-03-23')])
+    .range([0, w]);
+
+  svg.append('g').attr('transform', `translate(0,${h})`)
+    .call(d3.axisBottom(xScale).ticks(d3.timeDay.every(1)).tickFormat(d3.timeFormat('%b %d')))
+    .selectAll('text').attr('fill', '#8b949e');
+
+  // Baseline
+  svg.append('line')
+    .attr('x1', 0).attr('x2', w)
+    .attr('y1', h / 2).attr('y2', h / 2)
+    .attr('stroke', '#30363d').attr('stroke-width', 1);
+
+  const typeColors = { created: '#3fb950', updated: '#58a6ff', archived: '#484f58' };
+  const typeSymbols = { created: d3.symbolCircle, updated: d3.symbolDiamond, archived: d3.symbolCross };
+
+  const groups = d3.group(allEvents, d => d.date + d.type);
+  let idx = 0;
+  allEvents.forEach((e, i) => {
+    const offsetY = (i % 3 - 1) * 20;
+    const sym = d3.symbol().type(typeSymbols[e.type]).size(80);
+
+    svg.append('line')
+      .attr('x1', xScale(e.dateObj)).attr('x2', xScale(e.dateObj))
+      .attr('y1', h / 2).attr('y2', h / 2 + offsetY - 6)
+      .attr('stroke', '#30363d').attr('stroke-width', 1);
+
+    svg.append('path')
+      .attr('d', sym())
+      .attr('transform', `translate(${xScale(e.dateObj)},${h / 2 + offsetY})`)
+      .attr('fill', typeColors[e.type])
+      .attr('cursor', 'pointer')
+      .on('mouseenter', function(ev) {
+        tooltip.style('opacity', 1)
+          .html(`<strong>${e.name}</strong><br>${e.type} on ${e.date}`);
+      })
+      .on('mousemove', function(ev) {
+        tooltip.style('left', (ev.clientX + 14) + 'px').style('top', (ev.clientY - 10) + 'px');
+      })
+      .on('mouseleave', () => tooltip.style('opacity', 0));
+  });
+
+  // Legend
+  const legend = svg.append('g').attr('transform', `translate(${w - 260}, -5)`);
+  Object.entries(typeColors).forEach(([k, v], i) => {
+    legend.append('rect').attr('x', i * 90).attr('y', 0).attr('width', 10).attr('height', 10).attr('rx', 2).attr('fill', v);
+    legend.append('text').attr('x', i * 90 + 14).attr('y', 9).attr('font-size', '10px').attr('fill', '#8b949e').text(k);
+  });
+})();
+</script>
+</body>
+</html>

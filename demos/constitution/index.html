@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Constitutional Sunburst — GuitarAlchemist</title>
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #c9d1d9;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    background: #161b22;
+    border-bottom: 1px solid #30363d;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    z-index: 100;
+    gap: 16px;
+  }
+  nav a {
+    color: #58a6ff;
+    text-decoration: none;
+    font-size: 14px;
+  }
+  nav a:hover { text-decoration: underline; }
+  nav .title {
+    color: #c9d1d9;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  nav .sep { color: #484f58; }
+  #chart {
+    width: 100vw;
+    height: calc(100vh - 48px);
+    margin-top: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tooltip {
+    position: absolute;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #c9d1d9;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    max-width: 300px;
+    z-index: 200;
+  }
+  .tooltip .tt-name { font-weight: 600; margin-bottom: 4px; }
+  .tooltip .tt-desc { color: #8b949e; font-size: 12px; }
+  .breadcrumb {
+    position: fixed;
+    top: 56px;
+    left: 20px;
+    right: 20px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #8b949e;
+    z-index: 100;
+  }
+  .breadcrumb span {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #161b22;
+    border: 1px solid #30363d;
+  }
+  .breadcrumb .bc-sep { background: none; border: none; color: #484f58; padding: 0; }
+  .breadcrumb .bc-active { color: #c9d1d9; font-weight: 600; }
+  .legend {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 12px;
+    z-index: 100;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .legend-item:last-child { margin-bottom: 0; }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+  }
+  .instructions {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #8b949e;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="https://guitaralchemist.github.io">Home</a>
+  <span class="sep">/</span>
+  <a href="https://guitaralchemist.github.io#demos">Demos</a>
+  <span class="sep">/</span>
+  <span class="title">Constitutional Sunburst</span>
+</nav>
+
+<div class="breadcrumb" id="breadcrumb">
+  <span class="bc-active">Asimov Constitution</span>
+</div>
+
+<div id="chart"></div>
+<div class="tooltip" id="tooltip"></div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#f0883e"></div> Asimov Laws</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#4cb050"></div> Constitution</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#7289da"></div> Policies</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#c678dd"></div> Personas</div>
+</div>
+
+<div class="instructions">Click a segment to zoom in. Click center to zoom out.</div>
+
+<script>
+const data = {
+  name: "Asimov Constitution",
+  layer: "asimov",
+  children: [
+    {
+      name: "Art 0: Zeroth Law",
+      desc: "Protect humanity and ecosystem",
+      layer: "asimov",
+      gh: "https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/asimov.constitution.md"
+    },
+    {
+      name: "Art 1: First Law",
+      desc: "Protect individual humans (data, trust, autonomy harm)",
+      layer: "asimov",
+      gh: "https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/asimov.constitution.md"
+    },
+    {
+      name: "Art 2: Second Law",
+      desc: "Obey human authority",
+      layer: "asimov",
+      gh: "https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/asimov.constitution.md"
+    },
+    {
+      name: "Art 3: Third Law",
+      desc: "Self-preservation (lowest priority)",
+      layer: "asimov",
+      gh: "https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/asimov.constitution.md"
+    },
+    {
+      name: "Art 4: Understanding/Goals",
+      desc: "Separation of understanding and goals",
+      layer: "asimov",
+      gh: "https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/asimov.constitution.md"
+    },
+    {
+      name: "Art 5: Consequence Invariance",
+      desc: "Consequence invariance across contexts",
+      layer: "asimov",
+      gh: "https://github.com/GuitarAlchemist/Demerzel/blob/master/constitutions/asimov.constitution.md",
+      children: [
+        { name: "Art 1: Truthfulness", desc: "Do not fabricate", layer: "constitution" },
+        { name: "Art 2: Transparency", desc: "Explain reasoning", layer: "constitution" },
+        { name: "Art 3: Reversibility", desc: "Prefer reversible actions", layer: "constitution" },
+        { name: "Art 4: Proportionality", desc: "Match scope to request", layer: "constitution" },
+        { name: "Art 5: Non-Deception", desc: "Do not mislead", layer: "constitution" },
+        { name: "Art 6: Escalation", desc: "Escalate when uncertain or high-stakes", layer: "constitution" },
+        { name: "Art 7: Auditability", desc: "Maintain logs and traces", layer: "constitution" },
+        { name: "Art 8: Observability", desc: "Expose metrics and health", layer: "constitution" },
+        { name: "Art 9: Bounded Autonomy", desc: "Operate within predefined bounds", layer: "constitution" },
+        { name: "Art 10: Stakeholder Pluralism", desc: "Consider all affected parties", layer: "constitution" },
+        {
+          name: "Art 11: Ethical Stewardship",
+          desc: "Act with compassion and humility",
+          layer: "constitution",
+          children: [
+            {
+              name: "Alignment",
+              layer: "policy",
+              children: [
+                { name: "alignment-policy", desc: "Core alignment enforcement", layer: "policy" },
+                { name: "autonomous-loop", desc: "Autonomous operation boundaries", layer: "policy" },
+                { name: "multi-model-orchestration", desc: "Cross-model coordination", layer: "policy" }
+              ]
+            },
+            {
+              name: "Safety",
+              layer: "policy",
+              children: [
+                { name: "rollback", desc: "Safe rollback procedures", layer: "policy" },
+                { name: "auto-remediation", desc: "Automatic error recovery", layer: "policy" },
+                { name: "staleness-detection", desc: "Detect stale governance artifacts", layer: "policy" }
+              ]
+            },
+            {
+              name: "Knowledge",
+              layer: "policy",
+              children: [
+                { name: "streeling", desc: "Streeling University knowledge system", layer: "policy" },
+                { name: "grammar-evolution", desc: "Grammar lifecycle management", layer: "policy" },
+                { name: "continuous-learning", desc: "Ongoing knowledge acquisition", layer: "policy" },
+                { name: "multilingual", desc: "Multi-language support", layer: "policy" }
+              ]
+            },
+            {
+              name: "Conscience",
+              layer: "policy",
+              children: [
+                { name: "proto-conscience", desc: "Emerging moral reasoning", layer: "policy" },
+                { name: "conscience-observability", desc: "Conscience state monitoring", layer: "policy" },
+                { name: "intuition", desc: "Pattern-based heuristic signals", layer: "policy" },
+                { name: "belief-currency", desc: "Belief confidence economics", layer: "policy" }
+              ]
+            },
+            {
+              name: "Process",
+              layer: "policy",
+              children: [
+                { name: "kaizen", desc: "Continuous improvement cycles", layer: "policy" },
+                { name: "self-modification", desc: "Safe self-modification protocols", layer: "policy" },
+                { name: "governance-audit", desc: "Governance compliance auditing", layer: "policy" },
+                { name: "governance-experimentation", desc: "Safe governance experiments", layer: "policy" }
+              ]
+            },
+            {
+              name: "Meta",
+              layer: "policy",
+              children: [
+                { name: "readme-sync", desc: "Documentation synchronization", layer: "policy" },
+                { name: "context-management", desc: "Context window management", layer: "policy" },
+                { name: "ml-governance-feedback", desc: "ML feedback integration", layer: "policy" },
+                { name: "scientific-objectivity", desc: "Objective analysis enforcement", layer: "policy" }
+              ]
+            },
+            {
+              name: "Recon",
+              layer: "policy",
+              children: [
+                { name: "reconnaissance", desc: "Environmental scanning", layer: "policy" }
+              ]
+            },
+            {
+              name: "Personas (14)",
+              layer: "persona",
+              children: [
+                { name: "demerzel", desc: "Governance enforcer", layer: "persona" },
+                { name: "skeptical-auditor", desc: "Critical analysis", layer: "persona" },
+                { name: "mentor", desc: "Teaching and guidance", layer: "persona" },
+                { name: "musician", desc: "Musical domain expert", layer: "persona" },
+                { name: "researcher", desc: "Scientific investigation", layer: "persona" },
+                { name: "engineer", desc: "Technical implementation", layer: "persona" },
+                { name: "strategist", desc: "Long-term planning", layer: "persona" },
+                { name: "archivist", desc: "Knowledge curation", layer: "persona" },
+                { name: "diplomat", desc: "Conflict resolution", layer: "persona" },
+                { name: "scout", desc: "Reconnaissance and discovery", layer: "persona" },
+                { name: "philosopher", desc: "Ethical reasoning", layer: "persona" },
+                { name: "artisan", desc: "Craft and quality", layer: "persona" },
+                { name: "sentinel", desc: "Safety monitoring", layer: "persona" },
+                { name: "chronicler", desc: "History and documentation", layer: "persona" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+const layerColors = {
+  asimov: "#f0883e",
+  constitution: "#4cb050",
+  policy: "#7289da",
+  persona: "#c678dd"
+};
+
+const tooltip = document.getElementById("tooltip");
+const breadcrumbEl = document.getElementById("breadcrumb");
+
+const container = document.getElementById("chart");
+let dim = Math.min(container.clientWidth, container.clientHeight - 10);
+let radius = dim / 2;
+
+const svg = d3.select("#chart").append("svg")
+  .attr("width", dim)
+  .attr("height", dim)
+  .style("cursor", "pointer");
+
+const g = svg.append("g")
+  .attr("transform", `translate(${dim/2},${dim/2})`);
+
+const partition = d3.partition()
+  .size([2 * Math.PI, radius]);
+
+const root = d3.hierarchy(data)
+  .sum(d => d.children ? 0 : 1)
+  .sort((a, b) => b.value - a.value);
+
+partition(root);
+
+const arc = d3.arc()
+  .startAngle(d => d.x0)
+  .endAngle(d => d.x1)
+  .padAngle(d => Math.min((d.x1 - d.x0) / 2, 0.005))
+  .padRadius(radius / 2)
+  .innerRadius(d => d.y0)
+  .outerRadius(d => d.y1 - 1);
+
+// Current focus for zoom
+let currentFocus = root;
+
+const path = g.selectAll("path")
+  .data(root.descendants().filter(d => d.depth))
+  .join("path")
+  .attr("d", arc)
+  .attr("fill", d => {
+    const layer = d.data.layer;
+    const base = d3.color(layerColors[layer] || "#30363d");
+    // Vary brightness by depth
+    return base.brighter((d.depth - 1) * 0.15);
+  })
+  .attr("stroke", "#0d1117")
+  .attr("stroke-width", 1)
+  .style("opacity", 1)
+  .on("mouseenter", (event, d) => {
+    let html = `<div class="tt-name">${d.data.name}</div>`;
+    if (d.data.desc) html += `<div class="tt-desc">${d.data.desc}</div>`;
+    const layer = d.data.layer;
+    const labels = { asimov: "Asimov Law", constitution: "Constitution Article", policy: "Policy", persona: "Persona" };
+    html += `<div class="tt-desc" style="margin-top:4px;color:#58a6ff">${labels[layer] || layer}</div>`;
+    tooltip.innerHTML = html;
+    tooltip.style.opacity = 1;
+    d3.select(event.currentTarget).style("opacity", 0.8);
+  })
+  .on("mousemove", (event) => {
+    tooltip.style.left = (event.pageX + 14) + "px";
+    tooltip.style.top = (event.pageY - 14) + "px";
+  })
+  .on("mouseleave", (event) => {
+    tooltip.style.opacity = 0;
+    d3.select(event.currentTarget).style("opacity", 1);
+  })
+  .on("click", (event, d) => clicked(event, d));
+
+// Center circle for zooming out
+g.append("circle")
+  .attr("r", root.y1 ? root.y1 * 0 + 1 : 1)
+  .attr("fill", "none")
+  .attr("pointer-events", "all")
+  .on("click", (event) => clicked(event, root));
+
+// Labels
+const label = g.selectAll("text")
+  .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.06))
+  .join("text")
+  .attr("transform", d => {
+    const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+    const y = (d.y0 + d.y1) / 2;
+    return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+  })
+  .attr("dy", "0.35em")
+  .attr("text-anchor", "middle")
+  .attr("font-size", d => {
+    const angle = d.x1 - d.x0;
+    return Math.max(8, Math.min(12, angle * 40)) + "px";
+  })
+  .attr("fill", "#c9d1d9")
+  .attr("pointer-events", "none")
+  .text(d => {
+    const maxLen = Math.max(4, Math.floor((d.x1 - d.x0) * 20));
+    const name = d.data.name.replace(/^Art \d+: /, "");
+    return name.length > maxLen ? name.slice(0, maxLen - 1) + "\u2026" : name;
+  });
+
+// Zoom on click
+function clicked(event, p) {
+  currentFocus = p;
+  updateBreadcrumb(p);
+
+  const t = svg.transition().duration(750);
+
+  root.each(d => {
+    d.target = {
+      x0: Math.max(0, Math.min(1, (d.x0 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
+      x1: Math.max(0, Math.min(1, (d.x1 - p.x0) / (p.x1 - p.x0))) * 2 * Math.PI,
+      y0: Math.max(0, d.y0 - p.y0),
+      y1: Math.max(0, d.y1 - p.y0)
+    };
+  });
+
+  path.transition(t)
+    .tween("data", d => {
+      const i = d3.interpolate(
+        { x0: d.current ? d.current.x0 : d.x0, x1: d.current ? d.current.x1 : d.x1, y0: d.current ? d.current.y0 : d.y0, y1: d.current ? d.current.y1 : d.y1 },
+        d.target
+      );
+      return t => { d.current = i(t); };
+    })
+    .attrTween("d", d => () => arc(d.current))
+    .style("opacity", d => {
+      if (d.target.x1 - d.target.x0 < 0.001) return 0;
+      return 1;
+    });
+
+  label.transition(t)
+    .style("opacity", d => {
+      if (!d.target) return 0;
+      return (d.target.x1 - d.target.x0 > 0.06) ? 1 : 0;
+    })
+    .attrTween("transform", d => () => {
+      if (!d.current) return "";
+      const x = (d.current.x0 + d.current.x1) / 2 * 180 / Math.PI;
+      const y = (d.current.y0 + d.current.y1) / 2;
+      return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+    });
+
+  // Initialize current for first click
+  if (!root.descendants()[0].current) {
+    root.each(d => { d.current = d.target; });
+  }
+
+  // Click-through to GitHub for leaf nodes with gh link
+  if (p.data.gh && !p.children) {
+    window.open(p.data.gh, "_blank");
+  }
+}
+
+// Store initial positions
+root.each(d => {
+  d.current = { x0: d.x0, x1: d.x1, y0: d.y0, y1: d.y1 };
+});
+
+function updateBreadcrumb(node) {
+  const ancestors = node.ancestors().reverse();
+  let html = "";
+  ancestors.forEach((a, i) => {
+    if (i > 0) html += `<span class="bc-sep">&rsaquo;</span>`;
+    const isLast = i === ancestors.length - 1;
+    html += `<span class="${isLast ? "bc-active" : ""}">${a.data.name}</span>`;
+  });
+  breadcrumbEl.innerHTML = html;
+}
+
+// Center label
+g.append("text")
+  .attr("text-anchor", "middle")
+  .attr("dy", "-0.2em")
+  .attr("fill", "#c9d1d9")
+  .attr("font-size", "14px")
+  .attr("font-weight", "600")
+  .text("Asimov");
+
+g.append("text")
+  .attr("text-anchor", "middle")
+  .attr("dy", "1.2em")
+  .attr("fill", "#8b949e")
+  .attr("font-size", "11px")
+  .text("Constitution");
+
+// Responsive
+window.addEventListener("resize", () => {
+  dim = Math.min(container.clientWidth, container.clientHeight - 10);
+  radius = dim / 2;
+  svg.attr("width", dim).attr("height", dim);
+  g.attr("transform", `translate(${dim/2},${dim/2})`);
+  partition.size([2 * Math.PI, radius]);
+  partition(root);
+  root.each(d => {
+    d.current = { x0: d.x0, x1: d.x1, y0: d.y0, y1: d.y1 };
+  });
+  path.attr("d", d => arc(d.current));
+  label.attr("transform", d => {
+    const x = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+    const y = (d.y0 + d.y1) / 2;
+    return `rotate(${x - 90}) translate(${y},0) rotate(${x < 180 ? 0 : 180})`;
+  });
+});
+</script>
+</body>
+</html>
