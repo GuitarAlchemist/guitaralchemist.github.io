@@ -94,7 +94,94 @@
         </a>
       </div>
     </div>
+
+    <section class="ixql-section">
+      <h2>IxQL — ML Pipeline Language</h2>
+      <p>Declarative pipelines for the <a href="https://github.com/GuitarAlchemist/ix" target="_blank">ix forge</a>. Compose data sources, models, and evaluation — governed by <a href="https://github.com/GuitarAlchemist/Demerzel" target="_blank">Demerzel</a> constitutional checks.</p>
+      <div class="ixql-examples">
+        <div class="ixql-example">
+          <div class="ixql-label">Research pipeline</div>
+          <pre><code>governance_state → cleaning → gradient_boosting → f1_score → shap_values</code></pre>
+        </div>
+        <div class="ixql-example">
+          <div class="ixql-label">Ensemble with stacking</div>
+          <pre><code>(csv → normalize → random_forest → accuracy)
+  + (csv → embedding → transformer → auc_roc)
+  ⇒ stacking</code></pre>
+        </div>
+        <div class="ixql-example">
+          <div class="ixql-label">ix pattern: memristive Markov</div>
+          <pre><code>streaming_source → lag_features → memristive_markov → time_series_validation → mcp_tool</code></pre>
+        </div>
+        <div class="ixql-example">
+          <div class="ixql-label">Governed pipeline</div>
+          <pre><code>data_source → bias_assessment → model → confidence_calibration → explanation_requirement → deploy</code></pre>
+        </div>
+      </div>
+      <p class="ixql-footer">
+        <a href="https://github.com/GuitarAlchemist/Demerzel/blob/master/grammars/sci-ml-pipelines.ebnf" target="_blank">Full grammar (EBNF)</a> · 8 sections · supervised, unsupervised, neural, probabilistic, reinforcement models
+      </p>
+    </section>
   </main>
+
+  <style>
+    .ixql-section {
+      margin-top: 3rem;
+      padding: 2rem;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+    }
+    .ixql-section h2 {
+      color: #f0883e;
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .ixql-section > p {
+      color: #8b949e;
+      margin-bottom: 1.5rem;
+      font-size: 0.95rem;
+    }
+    .ixql-section a { color: #58a6ff; text-decoration: none; }
+    .ixql-section a:hover { text-decoration: underline; }
+    .ixql-examples {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 768px) {
+      .ixql-examples { grid-template-columns: 1fr; }
+    }
+    .ixql-example {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .ixql-label {
+      font-size: 0.75rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+    .ixql-example pre {
+      margin: 0;
+      overflow-x: auto;
+    }
+    .ixql-example code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.85rem;
+      color: #c9d1d9;
+      line-height: 1.5;
+    }
+    .ixql-footer {
+      margin-top: 1rem;
+      font-size: 0.8rem;
+      color: #8b949e;
+      text-align: center;
+    }
+  </style>
 
   <footer>
     <div class="container">
