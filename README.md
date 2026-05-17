@@ -1,62 +1,65 @@
 # Guitar Alchemist — Public Showcase & Presentation Layer
 
-The public-facing GitHub Pages site for [Guitar Alchemist](https://guitaralchemist.github.io). This repository is the **presentation layer only** — a static HTML/CSS/JavaScript showcase of interactive music theory demos.
+The public-facing GitHub Pages site for [Guitar Alchemist](https://guitaralchemist.github.io). This repository is the **presentation layer only** — a static HTML/CSS/JavaScript site that showcases interactive music-theory demos and visualizations of the wider GA ecosystem.
 
 ## Status
 
-**Active** — Maintenance & Demo Hosting
+**Active** — maintenance and demo hosting. Deploys automatically from `master` to GitHub Pages.
+
+## Repo Layout
+
+```
+index.html        # Landing page (manifesto, ecosystem dashboard, navigation)
+dashboard/        # D3.js Compounding Metrics dashboard (D_c)
+demos/            # Interactive demos:
+                  #   scales/ chords/ progressions/ fretboard/ circle-of-fifths/
+                  #   beliefs/ compounding/ constitution/ grammars/ mcp/
+                  #   roadmap/ (Poincaré-disk) streeling/
+showcase/         # Reserved for additional showcase pages
+docs/             # research/ + specs/ (issues #1-#7 specs & exploration notes)
+css/ js/          # Shared styling and client-side utilities
+```
 
 ## Purpose
 
-This is the **public showcase/presentation layer** for Guitar Alchemist. It hosts:
+This is the **public showcase / presentation layer** for the four-repo GA ecosystem (`ga`, `ix`, `Demerzel`, `tars`). It hosts:
 
-- **Interactive demos** with live music notation (VexFlow), audio playback (Web Audio API), and fretboard visualization
-- **Responsive landing page** linking to demo applications
-- **Static assets** (CSS, JavaScript utilities) for client-side rendering
-
-The site is deployed to GitHub Pages and served at https://guitaralchemist.github.io.
+- **Interactive music demos** — live notation (VexFlow), audio (Web Audio API), fretboard visualization
+- **Ecosystem visualizations** — D3.js dashboards, Poincaré-ball roadmap, BS Detector, IxQL pipeline showcase, Compounding Metrics
+- **Manifesto & narrative** — landing-page articulation of AI-age development principles
 
 ## Content & Ownership Boundaries
 
-### What Lives Here (Presentation Layer)
-
+### Lives here (presentation only)
 - Static HTML pages and demo shells
-- Demo-specific client-side logic (audio engine, VexFlow rendering)
-- Styling and responsive UI components
-- Navigation and card-based landing page
+- Demo-specific client-side logic (audio engine, VexFlow, D3.js)
+- Styling, responsive UI, navigation
 
-### What Belongs in [`ga`](https://github.com/GuitarAlchemist/ga) (Product Layer)
-
-- Music theory domain logic (scales, chords, modes, progressions)
-- Advanced AI-powered features (analysis, generation, classification)
+### Lives in [`ga`](https://github.com/GuitarAlchemist/ga) (product layer)
+- Music-theory domain logic (scales, chords, modes, progressions)
+- AI features (OPTIC-K embeddings, agents, MCP server)
 - Server APIs and backend services
-- Core data structures and algorithms
 
-**Key Principle:** This repo contains **presentation only**. Demo content is hand-authored here using simple, self-contained music theory implementations. No imports from the main `ga` repository.
+**Key principle:** demo content here is hand-authored and self-contained. No imports from the main `ga` repository at build time.
 
 ## Technology Stack
 
-- **VexFlow 4.x** — Music notation rendering (via CDN)
-- **Web Audio API** — Sound synthesis and playback
-- **Plain JavaScript** — No build step, no dependencies (standalone)
-- **Dark theme CSS** — Responsive, accessible styling
+- **VexFlow 4.x** — music notation rendering (via CDN)
+- **D3.js** — interactive visualizations and dashboards
+- **Web Audio API** — sound synthesis and playback
+- **Plain JavaScript** — no build step, no bundler
 
 ## Deployment
 
-The site is automatically deployed to GitHub Pages when changes are pushed to the `master` branch.
-
-- **Deployment target:** `https://guitaralchemist.github.io` (via GitHub Pages)
-- **Branch:** `master` (production)
+Pushes to `master` deploy automatically to [https://guitaralchemist.github.io](https://guitaralchemist.github.io) via GitHub Pages.
 
 ## Contributing
 
-Content here is hand-authored demo material. For product logic, API integration, or advanced features, see the main [`ga`](https://github.com/GuitarAlchemist/ga) repository.
-
-Keep presentation logic separate from domain logic. Demo content should work standalone without external dependencies.
+Hand-authored demos and visualizations only. For product logic, API integration, or AI features, work in the main [`ga`](https://github.com/GuitarAlchemist/ga) repo. Keep demo content standalone — no external runtime dependencies on sibling repos.
 
 ## Links
 
+- **Live site:** https://guitaralchemist.github.io
 - **GitHub org:** https://github.com/GuitarAlchemist
 - **Main repository:** https://github.com/GuitarAlchemist/ga
-- **Governance:** Governed by [Demerzel](https://github.com/GuitarAlchemist/Demerzel)
-- **Live site:** https://guitaralchemist.github.io
+- **Governance:** [Demerzel](https://github.com/GuitarAlchemist/Demerzel)
